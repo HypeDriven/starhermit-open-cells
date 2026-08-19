@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Open Cells visual harness</title>
+<link rel="stylesheet" href="../css/style.css">
+</head>
+<body>
+<script>
+fetch('/index.html').then(function (r) { return r.text(); }).then(function (html) {
+  var doc = new DOMParser().parseFromString(html, 'text/html');
+  document.body.innerHTML = '';
+  Array.from(doc.body.children).forEach(function (n) {
+    if (n.tagName !== 'SCRIPT') document.body.appendChild(document.importNode(n, true));
+  });
+});
+</script>
+<script src="../vendor/three.min.js"></script>
+<script src="../src/rules.js"></script>
+<script src="../src/content.js"></script>
+<script src="../src/session.js"></script>
+<script src="../src/platform.js"></script>
+<script src="../src/audio.js"></script>
+<script src="../src/render.js"></script>
+<script src="../src/board-dom.js"></script>
+<script src="../src/ui.js"></script>
+<script src="../src/main.js"></script>
+<script>
+(function () {
+  function ready() { return window.__ocApp && window.__ocApp.ui; }
+  var poll = setInterval(function () {
+    if (!ready()) return;
+    clearInterval(poll);
+    var app = window.__ocApp;
+    app.ui.closeAll();
+    // Open practice setup through the real UI and click the Standard deal button.
+    app.ui.showPracticeSetup();
+    setTimeout(function () {
+      var btns = Array.from(document.querySelectorAll('.screen-overlay[data-screen="practice-setup"] .btn-primary'));
+      if (btns[1]) btns[1].click();
+      setTimeout(function () {
+        var R = window.OCRules;
+        if (!app.session) { console.log('VISUAL FAIL: no session'); return; }
+        // Play a handful of legal moves through the session API.
+        for (var i = 0; i < 12; i++) {
+          var acts = R.enumerateActions(app.session.state).filter(function (a) { return a.kind === 'move'; });
+          if (!acts.length) break;
+          var a = acts[(i * 3) % acts.length];
+          window.OCSession.execute(app.session, { type: 'move', from: a.from, to: a.to, count: a.count });
+        }
+        // Show a selection + legal targets for the screenshot.
+        var st = app.session.state;
+        var colWithCards = st.tableau.findIndex(function (c) { return c.length > 1; });
+        if (colWithCards >= 0) {
+          var btn = document.querySelector('#dom-board [data-loc="tableau-' + colWithCards + '"]');
+          if (btn) btn.click();
+        }
+        setTimeout(function () { console.log('VISUAL READY'); }, 1200);
+      }, 1500);
+    }, 600);
+  }, 100);
+})();
+</script>
+</body>
+</html>

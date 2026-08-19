@@ -1,0 +1,12 @@
+{
+  "name": "open-cells",
+  "version": "1.0.0",
+  "description": "Open-information card puzzle on a brass-and-slate strategy desk.",
+  "private": true,
+  "scripts": {
+    "test": "node --test test/rules.test.js test/session.test.js",
+    "validate": "node tools/validate.js",
+    "validate:rescue": "node tools/validate.js --rescue",
+    "serve": "node server.js"
+  }
+}

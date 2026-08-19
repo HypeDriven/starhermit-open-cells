@@ -1,0 +1,4 @@
+name=Open Cells
+launch=index.html
+server=server.js
+version=1.0.0
