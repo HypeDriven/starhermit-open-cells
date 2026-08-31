@@ -1,0 +1,80 @@
+[
+  {
+    "name": "card-select",
+    "seconds": 1,
+    "prompt": "A single playing card lifted and tapped once against a felt card table, soft crisp paper snap.",
+    "event": "select"
+  },
+  {
+    "name": "card-deselect",
+    "seconds": 1,
+    "prompt": "A playing card gently laid back down onto a small stack of cards, soft muted paper thud.",
+    "event": "deselect"
+  },
+  {
+    "name": "card-pickup",
+    "seconds": 1,
+    "prompt": "A playing card sliding off the top of a deck with a quick paper flick and light fingertip brush.",
+    "event": "pickup"
+  },
+  {
+    "name": "card-drop",
+    "seconds": 1,
+    "prompt": "A small stack of playing cards landing flat on a wooden table with a soft slap.",
+    "event": "drop"
+  },
+  {
+    "name": "cell-store",
+    "seconds": 1,
+    "prompt": "A single playing card placed into an empty wooden slot, light click of the card edge against wood.",
+    "event": "cell"
+  },
+  {
+    "name": "foundation-build",
+    "seconds": 1,
+    "prompt": "A playing card snapped crisply onto a neat squared pile, bright satisfying paper click.",
+    "event": "foundation"
+  },
+  {
+    "name": "move-invalid",
+    "seconds": 1,
+    "prompt": "A dull wooden block knocked once against a tabletop, short negative low thunk.",
+    "event": "invalid"
+  },
+  {
+    "name": "move-undo",
+    "seconds": 1,
+    "prompt": "A playing card slid quickly backwards across felt fabric, soft reversing swish.",
+    "event": "undo"
+  },
+  {
+    "name": "hint-chime",
+    "seconds": 1,
+    "prompt": "A small brass desk bell tapped once gently, soft bright metallic ting.",
+    "event": "hint"
+  },
+  {
+    "name": "lesson-step",
+    "seconds": 1,
+    "prompt": "Two small wooden beads clicked together in quick succession, gentle instructional cue.",
+    "event": "lesson-step"
+  },
+  {
+    "name": "deal-win",
+    "seconds": 3,
+    "prompt": "A cascade of playing cards riffled and fanned across a wooden table with a celebratory flourish, ending in a light hand clap.",
+    "event": "win"
+  },
+  {
+    "name": "deal-lose",
+    "seconds": 2,
+    "prompt": "A deck of playing cards slowly gathered and squared up on a wooden table, subdued closing shuffle.",
+    "event": "lose"
+  },
+  {
+    "name": "achievement-unlock",
+    "seconds": 2,
+    "prompt": "A small brass trophy bell rung once with a bright clear sustained ring, celebratory desk chime.",
+    "event": "achievement"
+  }
+]

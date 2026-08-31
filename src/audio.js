@@ -1,9 +1,11 @@
 /*
  * Open Cells — audio.
- * Original procedural transients (no sampled assets) routed through
- * music/effects/ambience/voice buses with independent gain. Seeded pitch
- * variants keep replays consistent. All audio is decorative: no audio-only
- * gameplay, and every meaningful cue has a text equivalent in the UI.
+ * Authored one-shot samples (sfx/<name>.opus, see sfx/manifest.json) routed
+ * through the effects bus, with original procedural transients as fallback
+ * while a sample loads or if it is unavailable. Music, ambience, and voice
+ * stay synthesized. Buses have independent gain; seeded pitch variants keep
+ * replays consistent. All audio is decorative: no audio-only gameplay, and
+ * every meaningful cue has a text equivalent in the UI.
  * Browser only. Exposes window.OCAudio.
  */
 (function (global) {
@@ -17,6 +19,7 @@
   var musicNodes = null;
   var volumes = { music: 0.5, effects: 0.8, ambience: 0.4, voice: 0.7 };
   var muted = false;
+  var sampleCache = {};       // basename -> { state: 'loading'|'ready'|'failed', buffer }
 
   function ensureContext() {
     if (ctx) return true;
@@ -122,7 +125,61 @@
   function play(event, seed) {
     if (!ctx || muted) return;
     var fn = EVENTS[event];
+    var sample = SAMPLE_BY_EVENT[event];
+    if (sample) {
+      var used = false;
+      try { used = playSample(sample); } catch (e) { /* fall through to synth */ }
+      if (used) return;
+    }
     if (fn) { try { fn(seed || 1); } catch (e) { /* audio must never break play */ } }
+  }
+
+  // ---------------------------------------------------------------- samples
+  // Authored one-shots (sfx/manifest.json) backing the events above. Samples
+  // are fetched and decoded lazily on first use — which can only happen after
+  // unlock() has created the context via a user gesture — then cached. While
+  // a sample is loading or if it fails, the event falls back to its synth.
+
+  var SAMPLE_BY_EVENT = {
+    'select': 'card-select',
+    'deselect': 'card-deselect',
+    'pickup': 'card-pickup',
+    'drop': 'card-drop',
+    'cell': 'cell-store',
+    'foundation': 'foundation-build',
+    'invalid': 'move-invalid',
+    'undo': 'move-undo',
+    'hint': 'hint-chime',
+    'lesson-step': 'lesson-step',
+    'win': 'deal-win',
+    'lose': 'deal-lose',
+    'achievement': 'achievement-unlock'
+  };
+
+  function loadSample(name) {
+    var entry = sampleCache[name];
+    if (entry) return entry;
+    entry = sampleCache[name] = { state: 'loading', buffer: null };
+    if (!global.fetch) { entry.state = 'failed'; return entry; }
+    fetch('sfx/' + name + '.opus')
+      .then(function (res) {
+        if (!res.ok) throw new Error('http ' + res.status);
+        return res.arrayBuffer();
+      })
+      .then(function (bytes) { return ctx.decodeAudioData(bytes); })
+      .then(function (buffer) { entry.buffer = buffer; entry.state = 'ready'; })
+      .catch(function () { entry.state = 'failed'; });
+    return entry;
+  }
+
+  function playSample(name) {
+    var entry = loadSample(name);
+    if (entry.state !== 'ready') return false;
+    var src = ctx.createBufferSource();
+    src.buffer = entry.buffer;
+    src.connect(buses.effects);
+    src.start();
+    return true;
   }
 
   // Quiet desk ambience: filtered brown-ish noise + faint clock tick.

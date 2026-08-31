@@ -182,7 +182,7 @@ function handleApi(req, res, identity, body) {
 
 // ---------------------------------------------------------------- static + http
 
-const MIME = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.txt': 'text/plain', '.png': 'image/png', '.svg': 'image/svg+xml', '.md': 'text/markdown' };
+const MIME = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.txt': 'text/plain', '.png': 'image/png', '.svg': 'image/svg+xml', '.md': 'text/markdown', '.opus': 'audio/ogg' };
 
 function serveStatic(req, res) {
   const url = new URL(req.url, 'http://localhost');
