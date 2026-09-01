@@ -194,7 +194,8 @@
     // Hosted when served over http(s) with a same-origin /api route. We probe
     // lazily and cache the verdict so offline file:// play never stalls.
     if (apiAvailable._verdict !== undefined) return apiAvailable._verdict;
-    if (!global.location || !/^https?:$/.test(global.location.protocol)) {
+    if (!global.location || !/^https?:$/.test(global.location.protocol)
+        || /^[0-9a-f-]{36}\.starhermit\.com$/i.test(global.location.hostname)) {
       apiAvailable._verdict = false;
       return false;
     }
