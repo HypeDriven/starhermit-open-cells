@@ -1,4 +1,11 @@
-<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'><defs><linearGradient id='g' x1='0' y1='0' x2='1' y2='1'><stop offset='0' stop-color='hsl(224 60% 55%)'/><stop offset='1' stop-color='hsl(52 60% 40%)'/></linearGradient></defs>
-<rect width='64' height='64' rx='14' fill='url(#g)'/>
-<text x='32' y='44' font-size='34' text-anchor='middle' fill='#ffffff' font-family='Verdana,sans-serif' font-weight='bold'>O</text>
+<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'>
+  <rect width='64' height='64' rx='13' fill='#2b3138'/>
+  <g transform='rotate(8 38 29)'>
+    <rect x='24' y='10' width='28' height='38' rx='4' fill='#1b2025' stroke='#b08d3e' stroke-width='2.5'/>
+  </g>
+  <rect x='6' y='7' width='13' height='13' rx='3' fill='none' stroke='#d8b04c' stroke-width='3'/>
+  <g transform='rotate(-6 25 36)'>
+    <rect x='11' y='17' width='28' height='38' rx='4' fill='#f4efe4'/>
+    <polygon points='25,25 32.5,36 25,47 17.5,36' fill='#a63a3a'/>
+  </g>
 </svg>
