@@ -52,11 +52,11 @@ checksummed save document.
 
 ## Tests and validation
 
-- `node --test test/rules.test.js test/session.test.js` — engine and session
+- `node --test tests/rules.test.js tests/session.test.js` — engine and session
   unit tests (legality, invalid reasons, scoring, terminal states,
   serialization, replay determinism, fuzzing).
 - `node tools/validate.js` — offline content proof: every lesson's required
   actions are performable and every deal seed is solver-proven (`--rescue`
   finds replacement seeds for any unproven deal).
-- `test/e2e.html` — browser end-to-end harness driving the real UI
-  (serve the folder, open `/test/e2e.html`; results in the console).
+- `tests/e2e.html` — browser end-to-end harness driving the real UI
+  (serve the folder, open `/tests/e2e.html`; results in the console).

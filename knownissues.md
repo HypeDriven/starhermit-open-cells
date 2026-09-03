@@ -7,17 +7,17 @@ alongside the game's own unit tests and its browser harnesses driven through hea
 
 | Check | Result |
 | --- | --- |
-| `npm test` (`node --test test/rules.test.js test/session.test.js`) | 30/30 pass, 0 failures |
-| `node --check` on all modules (`src/*.js`, `server.js`, `tools/validate.js`, `test/*.js`) | clean |
-| `test/e2e.html` (headless Chrome, served on :39408) | **FAIL** — `harness crashed — TypeError: Cannot read properties of undefined (reading 'enumerateActions')` after 3 of ~20 assertions |
-| `test/probe.html` | PASS (`PROBE PASS`) |
-| `test/probe2.html` | PASS (4/4 assertions, `PROBE2 DONE`) |
-| `test/probe3.html` | PASS (9/9 assertions, `PROBE3 DONE`) |
+| `npm test` (`node --test tests/rules.test.js tests/session.test.js`) | 30/30 pass, 0 failures |
+| `node --check` on all modules (`src/*.js`, `server.js`, `tools/validate.js`, `tests/*.js`) | clean |
+| `tests/e2e.html` (headless Chrome, served on :39408) | **FAIL** — `harness crashed — TypeError: Cannot read properties of undefined (reading 'enumerateActions')` after 3 of ~20 assertions |
+| `tests/probe.html` | PASS (`PROBE PASS`) |
+| `tests/probe2.html` | PASS (4/4 assertions, `PROBE2 DONE`) |
+| `tests/probe3.html` | PASS (9/9 assertions, `PROBE3 DONE`) |
 | Headless-Chrome boot + play-through | Boots to title, deals a practice game, undo/hint work; **0** console errors |
 | Corrupt-`localStorage` sweep (8 corruptions × 3 keys, reload each time) | **FAIL** — 12 reloads raised `TypeError: Cannot read properties of undefined (reading 'length')` and the game never booted (see defect 2) |
 | Rapid-input + resize stress (90 key presses, 40 clicks, 5 viewport changes, 8 pause toggles) | PASS — 0 console errors |
 
-`tests/e2e.mjs` does not exist; `test/e2e.html` + `test/e2e-driver.js` is the equivalent browser suite.
+`tests/e2e.mjs` does not exist; `tests/e2e.html` + `tests/e2e-driver.js` is the equivalent browser suite.
 
 ## Confirmed defects
 
@@ -149,8 +149,8 @@ alongside the game's own unit tests and its browser harnesses driven through hea
 
 ### 6. The e2e harness reads `window.OCRules` before the game scripts have run
 
-- **File:** `test/e2e.html:10-22` together with `test/e2e-driver.js:38` (`R = window.OCRules;`)
-- **Trigger:** open `test/e2e.html`.
+- **File:** `tests/e2e.html:10-22` together with `tests/e2e-driver.js:38` (`R = window.OCRules;`)
+- **Trigger:** open `tests/e2e.html`.
 - **Behaviour:** the harness bootstraps from `fetch('/index.html').then(...)`, which resolves while the
   parser is still blocked downloading `../vendor/three.min.js`. The driver `<script>` is therefore
   appended *before* `../src/rules.js` executes, and `run()`'s first statement captures `undefined`.
@@ -165,7 +165,7 @@ alongside the game's own unit tests and its browser harnesses driven through hea
   PASS deal has 52 cards in tableau
   PASS dom board renders 52 card buttons
   FAIL harness crashed — TypeError: Cannot read properties of undefined (reading 'enumerateActions')
-      at run (http://127.0.0.1:39408/test/e2e-driver.js:59:18)
+      at run (http://127.0.0.1:39408/tests/e2e-driver.js:59:18)
   E2E DONE
   ```
 

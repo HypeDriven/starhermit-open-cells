@@ -1,5 +1,5 @@
 'use strict';
-/* Open Cells — E2E driver. Runs inside test/e2e.html against the real UI.
+/* Open Cells — E2E driver. Runs inside tests/e2e.html against the real UI.
  * Reports via console.log('PASS ...' / 'FAIL ...') and finishes with E2E DONE. */
 (function () {
   var log = function (ok, name, extra) { window.e2e.log(!!ok, name, extra); };

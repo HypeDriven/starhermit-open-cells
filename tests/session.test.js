@@ -1,5 +1,5 @@
 'use strict';
-/* Open Cells — session layer tests. Run: node --test test/ */
+/* Open Cells — session layer tests. Run: node --test tests/ */
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const R = require('../src/rules.js');

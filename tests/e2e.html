@@ -18,7 +18,7 @@ fetch('/index.html').then(function (r) { return r.text(); }).then(function (html
   var results = [];
   window.e2e = { log: function (ok, name, extra) { results.push({ ok: ok, name: name, extra: extra }); console.log((ok ? 'PASS ' : 'FAIL ') + name + (extra ? ' — ' + extra : '')); } };
   var s = document.createElement('script');
-  s.src = '../test/e2e-driver.js';
+  s.src = '../tests/e2e-driver.js';
   document.body.appendChild(s);
 });
 </script>

@@ -1,5 +1,5 @@
 'use strict';
-/* Open Cells — rules engine tests. Run: node --test test/ */
+/* Open Cells — rules engine tests. Run: node --test tests/ */
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const R = require('../src/rules.js');
