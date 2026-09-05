@@ -35,9 +35,9 @@
   }
 
   async function run() {
-    R = window.OCRules;
     await waitFor(function () { return window.__ocApp && window.__ocApp.ui; }, 'boot');
     app = window.__ocApp;
+    R = window.OCRules;
 
     // 1. Title screen appears.
     await waitFor(function () { return $('.screen-overlay[data-screen="title"]'); }, 'title screen');

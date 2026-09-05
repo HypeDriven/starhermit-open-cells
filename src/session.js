@@ -226,7 +226,7 @@
           continue;
         }
         if (c.type === 'invalid') { s = R.applyCommand(s, { type: '__rejected' }); continue; }
-        if (c.type === 'concede') { stack.push(s); s = R.applyCommand(s, { type: 'concede' }); continue; }
+        if (c.type === 'concede') { s = R.applyCommand(s, { type: 'concede' }); continue; }
         var v = c.type === 'auto'
           ? (R.findSafeAutoMoves(s).length > 0 ? { ok: true } : { ok: false, reason: 'nothing-to-collect' })
           : R.validateMove(s, c.from, c.to, c.count || 1);

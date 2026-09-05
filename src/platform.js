@@ -96,7 +96,7 @@
   function loadSave() {
     var doc = readJson(SAVE_KEY, null);
     if (!doc) return { doc: emptySave(), conflict: null };
-    if (doc.checksum !== checksum(doc.payload)) {
+    if (typeof doc.payload !== 'string' || doc.checksum !== checksum(doc.payload)) {
       // Corrupt — preserve the bytes and start clean rather than discarding.
       writeJson(SAVE_KEY + '.corrupt.' + Date.now(), doc);
       return { doc: emptySave(), conflict: 'checksum-mismatch' };

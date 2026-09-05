@@ -84,10 +84,12 @@ function validateScoreClaim(body) {
   if (errors.length) return { ok: false, errors };
   if (!Number.isInteger(body.seed) || body.seed < 0) errors.push('bad-seed');
   if (body.ruleset !== 'open-cells/1') errors.push('bad-ruleset');
-  if (body.contentVersion > STALE_CONTENT_VERSION) errors.push('future-version');
+  if (!Number.isInteger(body.contentVersion)) errors.push('bad-content-version');
+  else if (body.contentVersion > STALE_CONTENT_VERSION) errors.push('future-version');
   if (!body.score || !Number.isInteger(body.score.total)) errors.push('bad-score');
   if (!Number.isInteger(body.moves) || body.moves < 0 || body.moves > 5000) errors.push('bad-moves');
   if (!Number.isInteger(body.durationMs) || body.durationMs < 0) errors.push('bad-duration');
+  if (!Number.isInteger(body.invalid) || body.invalid < 0) errors.push('bad-invalid');
   if (body.score.total < -1000 || body.score.total > 50000) errors.push('implausible-score');
   if (errors.length) return { ok: false, errors };
 
@@ -147,7 +149,7 @@ function handleApi(req, res, identity, body) {
         label: verdict.validated ? 'validated' : 'casual',
         at: new Date().toISOString()
       });
-      list.sort((a, b) => (b.score.total - a.score.total) || (a.invalid - b.invalid) || (a.durationMs - b.durationMs) || String(a.sessionId).localeCompare(String(b.sessionId)));
+      list.sort((a, b) => (b.validated - a.validated) || (b.score.total - a.score.total) || ((a.invalid || 0) - (b.invalid || 0)) || ((a.durationMs || 0) - (b.durationMs || 0)) || String(a.sessionId).localeCompare(String(b.sessionId)));
       boards.boards[body.board] = list.slice(0, BOARD_CAP);
       saveJson(BOARDS_FILE, boards);
     }
@@ -161,8 +163,9 @@ function handleApi(req, res, identity, body) {
     if (!C.ACHIEVEMENTS.some(a => a.key === key)) return send(422, { error: 'unknown-achievement' });
     const store = loadJson(ACHIEVEMENTS_FILE, {});
     const mine = store[identity] || {};
-    if (!mine[key]) { mine[key] = new Date().toISOString(); store[identity] = mine; saveJson(ACHIEVEMENTS_FILE, store); }
-    return send(200, { ok: true, already: true });
+    const had = !!mine[key];
+    if (!had) { mine[key] = new Date().toISOString(); store[identity] = mine; saveJson(ACHIEVEMENTS_FILE, store); }
+    return send(200, { ok: true, already: had });
   }
 
   if (req.method === 'POST' && url.pathname === '/api/v1/presence') return send(200, { ok: true });
@@ -186,7 +189,9 @@ const MIME = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css
 
 function serveStatic(req, res) {
   const url = new URL(req.url, 'http://localhost');
-  let p = decodeURIComponent(url.pathname);
+  let p;
+  try { p = decodeURIComponent(url.pathname); }
+  catch (e) { res.writeHead(400); return res.end('bad request'); }
   if (p === '/') p = '/index.html';
   const file = path.normalize(path.join(__dirname, p));
   if (!file.startsWith(__dirname) || file.includes('.server-data')) {

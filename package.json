@@ -5,8 +5,12 @@
   "private": true,
   "scripts": {
     "test": "node --test tests/rules.test.js tests/session.test.js",
+    "test:e2e": "node tests/e2e.mjs",
     "validate": "node tools/validate.js",
     "validate:rescue": "node tools/validate.js --rescue",
     "serve": "node server.js"
+  },
+  "devDependencies": {
+    "playwright-core": "^1.62.1"
   }
 }
