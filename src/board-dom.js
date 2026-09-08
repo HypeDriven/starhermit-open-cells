@@ -68,11 +68,11 @@
       return selection && selection.loc.zone === loc.zone && selection.loc.index === loc.index;
     }
 
-    function makeSlotButton(loc, label, extraCls) {
-      var b = el('button', 'slot ' + (extraCls || ''), label);
+    function makeSlotButton(loc, ariaLabel, extraCls, shortText) {
+      var b = el('button', 'slot ' + (extraCls || ''), shortText != null ? shortText : ariaLabel);
       b.type = 'button';
       b.dataset.loc = locKey(loc);
-      b.setAttribute('aria-label', label + (isLegalTarget(loc) ? ' — legal target' : ''));
+      b.setAttribute('aria-label', ariaLabel + (isLegalTarget(loc) ? ' — legal target' : ''));
       if (isLegalTarget(loc)) b.classList.add('legal-target');
       if (isHintLoc(loc)) b.classList.add('hint-target');
       b.addEventListener('click', function () { hooks.onSlot(loc); });
@@ -116,7 +116,7 @@
           dis.setAttribute('aria-hidden', 'true');
           cellsSec.appendChild(dis);
         } else if (id === null) {
-          cellsSec.appendChild(makeSlotButton({ zone: 'cell', index: i }, 'Empty cell ' + (i + 1)));
+          cellsSec.appendChild(makeSlotButton({ zone: 'cell', index: i }, 'Empty cell ' + (i + 1), null, 'Cell ' + (i + 1)));
         } else {
           cellsSec.appendChild(makeCardButton(id, { zone: 'cell', index: i }, 0, 1));
         }
@@ -127,7 +127,8 @@
       for (var f = 0; f < R.NUM_SUITS; f++) {
         var pile = state.foundations[f];
         if (pile.length === 0) {
-          foundSec.appendChild(makeSlotButton({ zone: 'foundation', index: f }, SUIT_WORDS[f] + ' foundation, empty'));
+          foundSec.appendChild(makeSlotButton({ zone: 'foundation', index: f },
+            SUIT_WORDS[f] + ' foundation, empty', null, R.SUIT_SYMBOLS[f]));
         } else {
           var top = pile[pile.length - 1];
           foundSec.appendChild(makeCardButton(top, { zone: 'foundation', index: f }, pile.length - 1, pile.length));

@@ -657,6 +657,13 @@
   function attemptMove(from, to, count) {
     if (!app.session || app.session.state.status !== 'active') return;
     if (!to) { select(null, true); A.play('deselect'); refreshBoard(); return; }
+    // Dropping a card back onto its own pile is a cancel, not an invalid
+    // attempt — it must not cost score or bump the invalid counter.
+    if (from.zone === to.zone && from.index === to.index) {
+      select(null, true);
+      refreshBoard();
+      return;
+    }
     var r = S.execute(app.session, { id: cmdId(), type: 'move', from: from, to: to, count: count || 1 });
     if (r.ok) {
       haptic(15);
@@ -850,7 +857,8 @@
   }
 
   function doConcede() {
-    if (!app.session) return;
+    if (!app.session || app.phase !== 'active' || app.paused) return;
+    if (app.session.state.status !== 'active') return;
     if (global.confirm('Concede this deal?')) {
       S.execute(app.session, { id: cmdId(), type: 'concede' });
     }

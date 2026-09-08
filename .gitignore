@@ -1,5 +1,6 @@
 node_modules/
 .local-data/
+.server-data/
 *.log
 .DS_Store
 test-results/

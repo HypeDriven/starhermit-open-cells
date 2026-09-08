@@ -492,6 +492,9 @@
         if (vv.ok) { doMove(next, m.from, m.to, 1); next.moves += 1; }
       }
     } else if (cmd.type === 'concede') {
+      // Concede is only meaningful while the deal is live; conceding a won
+      // (or already lost) deal must not overwrite the terminal outcome.
+      if (s.status !== 'active') { next.invalid += 1; return next; }
       next.status = 'lost';
       next.terminalReason = 'conceded';
       return next;

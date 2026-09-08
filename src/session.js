@@ -38,19 +38,21 @@
       tableau: options.tableau || null, // custom layouts (lessons) ride along for replay
       lastInvalid: null       // { reason, message } for UI explanation
     };
-    normalizeLesson(session);
+    if (normalizeLesson(session)) {
+      emit(session, { type: 'lesson-step', index: session.lesson.stepIndex, done: true });
+    }
     return session;
   }
 
   // Text-only steps (no required action) are presentation; advance past them
   // so the tracker always rests on a step the player must perform.
+  // Returns true when the lesson has run out of steps (complete); callers
+  // emit the event so completion is announced exactly once.
   function normalizeLesson(session) {
     var l = session.lesson;
-    if (!l) return;
+    if (!l) return false;
     while (l.stepIndex < l.def.steps.length && !l.def.steps[l.stepIndex].require) l.stepIndex++;
-    if (l.stepIndex >= l.def.steps.length) {
-      emit(session, { type: 'lesson-step', index: l.stepIndex, done: true });
-    }
+    return l.stepIndex >= l.def.steps.length;
   }
 
   function makeSessionId(state) {
@@ -154,8 +156,8 @@
     }
     if (ok) {
       lesson.stepIndex++;
-      normalizeLesson(session);
-      emit(session, { type: 'lesson-step', index: lesson.stepIndex, done: lesson.stepIndex >= lesson.def.steps.length });
+      var done = normalizeLesson(session);
+      emit(session, { type: 'lesson-step', index: lesson.stepIndex, done: done });
     }
   }
 

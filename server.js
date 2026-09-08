@@ -65,6 +65,10 @@ function saveJson(file, value) {
 const buckets = new Map();
 function rateOk(identity) {
   const now = Date.now();
+  // Bound the map: drop expired windows once it grows past many identities.
+  if (buckets.size > 5000) {
+    for (const [k, b] of buckets) if (now - b.start > RATE_WINDOW_MS) buckets.delete(k);
+  }
   let b = buckets.get(identity);
   if (!b || now - b.start > RATE_WINDOW_MS) { b = { start: now, count: 0 }; buckets.set(identity, b); }
   b.count++;
@@ -90,7 +94,8 @@ function validateScoreClaim(body) {
   if (!Number.isInteger(body.moves) || body.moves < 0 || body.moves > 5000) errors.push('bad-moves');
   if (!Number.isInteger(body.durationMs) || body.durationMs < 0) errors.push('bad-duration');
   if (!Number.isInteger(body.invalid) || body.invalid < 0) errors.push('bad-invalid');
-  if (body.score.total < -1000 || body.score.total > 50000) errors.push('implausible-score');
+  if (body.score && Number.isInteger(body.score.total)
+      && (body.score.total < -1000 || body.score.total > 50000)) errors.push('implausible-score');
   if (errors.length) return { ok: false, errors };
 
   // Daily boards only accept the real deal for the claimed day.
@@ -131,7 +136,13 @@ function handleApi(req, res, identity, body) {
   if (req.method === 'GET' && url.pathname === '/api/v1/boards') {
     const name = url.searchParams.get('name') || 'daily';
     const boards = loadJson(BOARDS_FILE, { boards: {} });
-    return send(200, { board: name, entries: (boards.boards[name] || []).slice(0, 50) });
+    // Public shape: never expose the submitter's identity (player id or IP).
+    const entries = (boards.boards[name] || []).slice(0, 50).map(e => {
+      const pub = Object.assign({}, e);
+      delete pub.identity;
+      return pub;
+    });
+    return send(200, { board: name, entries });
   }
 
   if (req.method === 'POST' && url.pathname === '/api/v1/scores') {
@@ -194,7 +205,7 @@ function serveStatic(req, res) {
   catch (e) { res.writeHead(400); return res.end('bad request'); }
   if (p === '/') p = '/index.html';
   const file = path.normalize(path.join(__dirname, p));
-  if (!file.startsWith(__dirname) || file.includes('.server-data')) {
+  if (!file.startsWith(__dirname + path.sep) || file.includes('.server-data')) {
     res.writeHead(403); return res.end('forbidden');
   }
   fs.readFile(file, (err, data) => {

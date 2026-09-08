@@ -128,8 +128,8 @@ async function runPass(browser, vpName, contextOptions) {
     await step('two legal moves made by clicking cards on the board', async () => {
       for (let i = 0; i < 2; i++) {
         // Read the rules engine only to decide WHICH visible cards to click,
-        // and prefer a move whose cards are not covered (stacked cards and,
-        // on mobile, the floating HUD rail can intercept pointer events).
+        // and prefer a move whose cards are not covered (stacked cards can
+        // intercept pointer events).
         const mv = await app(() => {
           const st = window.__ocApp.session.state;
           const acts = window.OCRules.enumerateActions(st).filter((a) => a.kind === 'move');
@@ -168,9 +168,9 @@ async function runPass(browser, vpName, contextOptions) {
           await waitApp(() => !!window.__ocApp.selection);
           await to.click();
         } else {
-          // Covered card (mobile HUD rail overlap — known issue): use the
+          // Covered card (stacking intercepts pointer events): use the
           // game's documented keyboard controls (Enter selects/places).
-          console.log('  note: move target under HUD rail; using keyboard controls');
+          console.log('  note: move target not pointer-clickable; using keyboard controls');
           await from.focus();
           await page.keyboard.press('Enter');
           await waitApp(() => !!window.__ocApp.selection);
@@ -270,30 +270,30 @@ async function runPass(browser, vpName, contextOptions) {
       // Lesson 1: move the 6 of spades (column 3) onto the 7 of hearts (column 2).
       const fromCard = page.locator('#dom-board [data-loc="tableau-3"][data-depth="0"]');
       const toCard = page.locator('#dom-board [data-loc="tableau-2"][data-depth="0"]');
-      if (vpName === 'mobile') {
-        // Known game bug: on 390px portrait the floating objective rail
-        // (#rail-left) fully covers the leftmost tableau cards in HTML-board
-        // mode, so pointer taps on them are impossible. Drive the documented
-        // keyboard controls instead (arrows navigate, Enter selects/places).
-        console.log('  note: lesson cards are under the mobile HUD rail; using keyboard controls');
+      const clickable = async (loc) => loc.evaluate((el) => {
+        const r = el.getBoundingClientRect();
+        const hit = document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2);
+        return hit === el || el.contains(hit);
+      });
+      if ((await clickable(fromCard)) && (await clickable(toCard))) {
+        await fromCard.click();
+        await waitApp(() => !!window.__ocApp.selection);
+        await toCard.click();
+      } else {
+        // Covered by another element: use the game's documented keyboard
+        // controls (arrows navigate, Enter selects/places).
+        console.log('  note: lesson card not pointer-clickable; using keyboard controls');
         await fromCard.focus();
         await page.keyboard.press('Enter');
         await waitApp(() => !!window.__ocApp.selection);
         await toCard.focus();
         await page.keyboard.press('Enter');
-      } else {
-        await fromCard.click();
-        await waitApp(() => !!window.__ocApp.selection);
-        await toCard.click();
       }
       await overlay('results').last().waitFor({ state: 'visible' });
-      // Known game bug: session.js emits the final lesson-step event twice
-      // (checkLesson + normalizeLesson), stacking two identical Results
-      // dialogs. The player sees and dismisses the top one; Leave closes all.
+      // Regression guard: lesson completion must present exactly one Results
+      // dialog (session used to emit the final lesson-step event twice).
       const dupResults = await overlay('results').count();
-      if (dupResults > 1) {
-        console.log(`  note: ${dupResults} stacked results overlays (known duplicate lesson-step emit bug)`);
-      }
+      if (dupResults !== 1) throw new Error(`expected 1 results overlay, got ${dupResults}`);
       const results = overlay('results').last();
       const headline = await results.locator('.results-headline').textContent();
       console.log('  lesson headline:', headline.trim());

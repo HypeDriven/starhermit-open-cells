@@ -6,6 +6,70 @@ alongside the game's own unit tests and its browser harnesses driven through hea
 Fix pass 2026-09-04: all eight confirmed defects fixed and re-verified (see **Resolved**). Unit tests
 and the browser e2e both pass.
 
+Review pass 2026-09-07 (Kimi): six further defects fixed and re-verified (see **Resolved 2026-09-07**).
+Unit tests, the browser e2e, and the content validator (`node tools/validate.js`, 55/55) all pass.
+`LICENSE.md` (PolyForm Noncommercial 1.0.0) added per root instructions; `.server-data/` gitignored.
+
+## Resolved 2026-09-07
+
+### 1. Lesson completion emitted `lesson-step` done twice — two stacked Results dialogs — FIXED
+
+- **Change:** `src/session.js` — `normalizeLesson` no longer emits; it returns a `completed` flag and
+  each caller (`createSession`, `checkLesson`) emits exactly once. Previously the final required
+  action produced two identical `done` events, so `lessonComplete()` ran twice and two Results
+  overlays stacked (visible in the old e2e workaround notes).
+- **Verify:** Node harness on `learn-foundations` → 2 step events, exactly 1 `done`; the e2e now
+  asserts `results` overlay count === 1 on desktop and mobile.
+
+### 2. Concede on a finished deal overwrote `won` with `lost` — FIXED
+
+- **Change:** `src/rules.js:494` (`applyCommand`, concede branch) — a concede is only applied while
+  `status === 'active'`; otherwise it counts as an invalid attempt and the terminal outcome stands.
+  `src/main.js` `doConcede` also gained the same phase/status guards the other HUD actions have.
+- **Verify:** Node harness — concede on a won state leaves `status: 'won'` (invalid +1); concede on
+  a live deal still yields `lost / conceded`.
+
+### 3. Dropping a card back onto its own pile counted as an invalid move — FIXED
+
+- **Change:** `src/main.js` (`attemptMove`) — a same-location move is treated as a cancel (silent
+  deselect) instead of being submitted to the engine, where it cost a turn, an invalid count and a
+  score penalty for what is physically "put it back". The rules engine itself is unchanged, so
+  replay semantics are untouched.
+- **Verify:** browser e2e (clicks/drag paths) green; engine unit tests unchanged and green.
+
+### 4. Mobile portrait: floating HUD rail covered and blocked the leftmost cards — FIXED
+
+- **Change:** `css/style.css` — below 1024 px in portrait, `#rail-left` is now a static top strip
+  (flex row, wraps) instead of an absolutely positioned overlay on the playfield. Landscape keeps
+  the existing narrow static rail. The old e2e had to fall back to keyboard because the lesson
+  cards were under the rail; it now completes them by pointer tap.
+- **Verify:** e2e mobile pass (390×844) uses pointer clicks for the lesson move again; deal/move
+  screenshots show every card fully visible.
+
+### 5. Top-row slots pushed foundations off-screen on narrow boards; DOM/3D foundation order mismatch — FIXED
+
+- **Change:** `src/board-dom.js` — empty slot buttons carry short visible labels ("Cell 1", suit
+  glyph for foundations) with the full text kept in `aria-label`. `css/style.css` — `.dom-cells` /
+  `.dom-foundations` share the row width (`flex: 1 1 0; min-width: 0`) and `.dom-foundations` uses
+  `row-reverse` so the DOM board shows foundations in the same left-to-right order as the 3D scene
+  (♣ ♦ ♥ ♠), which is also the order the board's arrow-key navigation already assumed.
+- **Verify:** mobile (390 px) and desktop screenshots show all 8 top-row slots on screen; e2e green.
+
+### 6. `GET /api/v1/boards` leaked the submitter identity — FIXED
+
+- **Change:** `server.js` — the boards endpoint now returns a public shape with `identity`
+  (player id or remote IP) stripped. Stored entries are unchanged.
+- **Verify:** live server — submitted with `x-player-id: tester-1`; board response contains no
+  `identity` field. Score submit/rank, 400-on-bad-escape and 404-on-traversal behavior unchanged.
+
+### Hardening (no behavioral defect confirmed)
+
+- `server.js` static boundary check now requires `__dirname + path.sep` (a prefix-sharing sibling
+  directory can no longer satisfy the prefix test — closes the previously "suspected" item 1).
+- `server.js` rate-limit bucket map prunes expired windows once it exceeds 5000 identities.
+- `server.js` `implausible-score` check guards `body.score` shape explicitly (defensive; the
+  earlier required-field gate already rejected null/missing scores with 422).
+
 ## Test results
 
 | Check | Result |
@@ -101,14 +165,10 @@ re-verified against the current source.
 
 ## Suspected — not confirmed
 
-### 1. Static-file boundary check is a string prefix, not a path boundary
+### 1. Static-file boundary check is a string prefix, not a path boundary — RESOLVED 2026-09-07
 
-- **File:** `server.js:190` — `if (!file.startsWith(__dirname) || file.includes('.server-data'))`
-- **Concern:** `__dirname` has no trailing separator, so a sibling directory whose name begins with
-  `open-cells` (e.g. `open-cells-backup/`) satisfies the prefix test and would be served.
-- **Why unconfirmed:** no such sibling exists here and a live `GET /../fleet-signals/spec.md` correctly
-  returned 404. Creating a prefix-sharing sibling to prove it would have meant writing into `~/games`.
-- **Decision:** left as-is; not a reproducible defect in the current tree.
+- **File:** `server.js` `serveStatic` — the check is now `file.startsWith(__dirname + path.sep)`,
+  so a prefix-sharing sibling directory can no longer satisfy it. See Resolved 2026-09-07, Hardening.
 
 ### 2. `validateReplay` does not apply the `noAuto` constraint to `auto` commands
 
@@ -120,13 +180,10 @@ re-verified against the current source.
   (`src/rules.js:486`), so the resulting hash is identical and the tamper achieves nothing.
 - **Decision:** left as-is; no divergent outcome exists.
 
-### 3. `.server-data/` is not gitignored
+### 3. `.server-data/` is not gitignored — RESOLVED 2026-09-07
 
-- **File:** `.gitignore` (`node_modules/`, `.local-data/`, `*.log`, `.DS_Store`) vs `server.js:38`
-- **Concern:** the runtime board/achievement store lands in the working tree as untracked files. The
-  `.local-data/` entry looks like it was meant for this but nothing writes there.
-- **Why unconfirmed:** may be an intentional deployment convention rather than an oversight.
-- **Decision:** left as-is.
+- **File:** `.gitignore` now includes `.server-data/`, so the runtime board/achievement store can no
+  longer be committed accidentally.
 
 ## Checked, no defects found
 
@@ -155,8 +212,8 @@ working tree; the pre-existing `.server-data/` is left for central cleanup (see 
 
 ## Not tested
 
-- `tools/validate.js` / `npm run validate` deal-solvability sweep — not part of the requested checks;
-  not run.
+- `tools/validate.js` — RUN 2026-09-07: 55/55 content items proven (lessons, journey, challenges,
+  dailies).
 - Three.js render correctness (`src/render.js`): only checked for absence of runtime errors under
   SwiftShader.
 - Audio (`src/audio.js`): headless Chrome blocks the AudioContext before a user gesture.

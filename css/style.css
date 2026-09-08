@@ -428,7 +428,11 @@ html.reduced-motion .btn:active { transform: none; }
 body.html-mode #dom-board { display: flex; }
 
 .dom-top { display: flex; justify-content: space-between; gap: 0.6rem; }
-.dom-cells, .dom-foundations { display: flex; gap: 0.4rem; }
+.dom-cells, .dom-foundations { display: flex; gap: 0.4rem; flex: 1 1 0; min-width: 0; }
+/* Foundations read right-to-left so the DOM board matches the 3D layout
+   (shared layout model) and the keyboard arrow navigation in board-dom. */
+.dom-foundations { flex-direction: row-reverse; }
+#dom-board .dom-top .slot { text-align: center; font-size: 1.05rem; }
 .dom-tableau { display: flex; gap: 0.4rem; flex: 1; align-items: flex-start; }
 .dom-column {
   flex: 1;
@@ -519,4 +523,22 @@ html.reduced-motion #dom-board .card.selected { transform: none; }
 @media (max-width: 700px) and (orientation: portrait) {
   #rail-left { font-size: 0.78rem; max-width: 210px; }
   .screen-body { padding: 0.4rem 0.9rem 1rem; }
+}
+
+/* Compact portrait: the status rail becomes a static top strip instead of
+   floating over the playfield, so it never covers or blocks cards. */
+@media (max-width: 1023px) and (orientation: portrait) {
+  #layout { grid-template-rows: auto 1fr; }
+  #rail-left {
+    position: static;
+    max-width: none;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 0.1rem 0.9rem;
+    padding: 0.35rem 0.8rem;
+  }
+  #rail-left .rail-heading { margin: 0; }
+  #rail-left p { margin: 0; }
+  #hud-lesson { flex-basis: 100%; }
 }
