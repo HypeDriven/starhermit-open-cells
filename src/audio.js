@@ -119,7 +119,11 @@
     'lesson-step': function () { blip('effects', { freq: 784, type: 'triangle', dur: 0.1, gain: 0.12 }); blip('effects', { freq: 1046, type: 'triangle', dur: 0.14, gain: 0.1, delay: 0.07 }); },
     'win':      function () { [523, 659, 784, 1046, 1318].forEach(function (f, i) { blip('effects', { freq: f, type: 'triangle', dur: 0.3, gain: 0.14, delay: i * 0.11 }); }); },
     'lose':     function () { [392, 330, 262].forEach(function (f, i) { blip('effects', { freq: f, type: 'sine', dur: 0.3, gain: 0.1, delay: i * 0.14 }); }); },
-    'achievement': function () { [880, 1108, 1318, 1760].forEach(function (f, i) { blip('effects', { freq: f, type: 'sine', dur: 0.22, gain: 0.1, delay: i * 0.07 }); }); }
+    'achievement': function () { [880, 1108, 1318, 1760].forEach(function (f, i) { blip('effects', { freq: f, type: 'sine', dur: 0.22, gain: 0.1, delay: i * 0.07 }); }); },
+    // Deal-out flourish: a short run of paper transients as the desk lays 52 cards.
+    'deal':     function (seed) { for (var i = 0; i < 6; i++) noiseHit('effects', { freq: 1500 + i * 120, dur: 0.05, gain: 0.1, seed: (seed || 1) + i * 7, delay: i * 0.055 }); },
+    // Star award on the results screen: one bright ascending brass ping per star.
+    'star':     function (seed) { [1046, 1318, 1568].forEach(function (f, i) { blip('effects', { freq: f, type: 'triangle', dur: 0.18, gain: 0.11, delay: i * 0.12, pitch: variant(seed) }); }); }
   };
 
   function play(event, seed) {
@@ -153,7 +157,9 @@
     'lesson-step': 'lesson-step',
     'win': 'deal-win',
     'lose': 'deal-lose',
-    'achievement': 'achievement-unlock'
+    'achievement': 'achievement-unlock',
+    'deal': 'deal-start',
+    'star': 'star-award'
   };
 
   function loadSample(name) {

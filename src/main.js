@@ -248,6 +248,7 @@
     }
 
     syncViews(true);
+    A.play('deal', config.seed);
     startTicking();
     activity('start');
     P.telemetry('start', { mode: config.mode });
@@ -510,6 +511,7 @@
 
     if (won) { A.play('win'); if (app.renderer) app.renderer.playEvent('win'); }
     else A.play('lose');
+    if (stars > 0) A.play('star', st.seed + stars);
 
     app.ui.showResults({
       status: st.status,

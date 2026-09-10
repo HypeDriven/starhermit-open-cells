@@ -1,0 +1,22 @@
+Open Cells — canonical SFX manifest.
+Format: file | event id | description of the sound | usage context
+Event ids are the keys of EVENTS / SAMPLE_BY_EVENT in src/audio.js; every clip
+below is loaded lazily on first use and falls back to its procedural synth
+while it decodes or if the fetch fails. All clips: MOSS-SoundEffect v2.0,
+48 kHz mono Opus, 96 kbps VBR, loudness-normalised, 100 inference steps.
+
+card-select.opus | select | Single card lifted and tapped once on felt, soft crisp paper snap. | A card or run becomes the current selection (canvas tap, DOM board click, keyboard Enter/Space).
+card-deselect.opus | deselect | Card laid back down on a small stack, muted paper thud. | Selection cleared: tapping the selection again, Escape, gamepad B, or a drag cancelled.
+card-pickup.opus | pickup | Card sliding off a deck, quick paper flick with a fingertip brush. | Pointer drag begins on the 3D canvas (render.js drag-start intent).
+card-drop.opus | drop | Small stack of cards landing flat on wood, soft slap. | A legal move commits onto a tableau column.
+cell-store.opus | cell | Card placed into an empty wooden slot, light click of edge on wood. | A legal move commits into one of the four temporary cells.
+foundation-build.opus | foundation | Card snapped onto a squared pile, bright satisfying click. | A legal move commits onto a suit foundation, including each step of Collect.
+move-invalid.opus | invalid | Dull wooden block knocked once, short low negative thunk. | The rules engine rejects an attempt; the reason text is also shown in the toast.
+move-undo.opus | undo | Card slid backwards across felt, soft reversing swish. | Undo (Z, rail button, tray button) pops a snapshot.
+hint-chime.opus | hint | Small brass desk bell tapped once, soft bright metallic ting. | Hint (H) highlights a ranked legal action on both boards.
+lesson-step.opus | lesson-step | Two wooden beads clicked together, gentle instructional cue. | A Learn lesson step is satisfied and the tracker advances.
+deal-start.opus | deal | A deck laid out onto a table in quick succession, a run of light paper taps settling into stillness. | A new deal is dealt at the start of every session (startSession in src/main.js).
+deal-win.opus | win | Cards riffled and fanned across a table, celebratory flourish ending in a light clap. | Terminal state 'won' (all 52 cards home).
+deal-lose.opus | lose | Deck gathered and squared up, subdued closing shuffle. | Terminal state 'lost': conceded, move limit exceeded, or time limit exceeded.
+star-award.opus | star | Three small brass bells struck in a rising sequence, bright metallic pings. | Results screen awards one to three Journey stars.
+achievement-unlock.opus | achievement | Small brass trophy bell rung once, bright sustained celebratory ring. | An achievement key is granted for the first time (idempotent, one cue per grant).

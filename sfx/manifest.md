@@ -17,3 +17,5 @@ Generated with MOSS-SoundEffect v2.0, 48 kHz mono Opus (96 kbps VBR, loudness-no
 | deal-win.opus | win | A cascade of playing cards riffled and fanned across a wooden table with a celebratory flourish, ending in a light hand clap. |
 | deal-lose.opus | lose | A deck of playing cards slowly gathered and squared up on a wooden table, subdued closing shuffle. |
 | achievement-unlock.opus | achievement | A small brass trophy bell rung once with a bright clear sustained ring, celebratory desk chime. |
+| deal-start.opus | deal | A dealer laying out a full deck of playing cards onto a wooden table in quick succession, a rapid run of light paper taps settling into stillness. |
+| star-award.opus | star | Three small brass bells struck one after another in a rising sequence, bright clean metallic pings with short sustain. |

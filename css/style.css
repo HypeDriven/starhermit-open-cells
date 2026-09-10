@@ -262,6 +262,18 @@ html.reduced-motion .btn:active { transform: none; }
   pointer-events: auto;
 }
 
+/* Key art backdrops. Colour first, image second: a missing file degrades to the
+   plain scrim without any layout change. */
+.screen-overlay[data-screen="title"],
+.screen-overlay[data-screen="results"] {
+  background-color: rgba(10, 12, 14, 0.72);
+  background-position: center;
+  background-size: cover;
+  background-blend-mode: multiply;
+}
+.screen-overlay[data-screen="title"] { background-image: url("../assets/title-key-art.webp"); }
+.screen-overlay[data-screen="results"] { background-image: url("../assets/results-flourish.webp"); }
+
 .screen {
   background: var(--panel);
   border: 2px solid var(--trim);
@@ -423,7 +435,12 @@ html.reduced-motion .btn:active { transform: none; }
   display: none;
   flex-direction: column;
   gap: 0.6rem;
-  background: var(--panel-2);
+  /* Authored felt photograph over the flat panel colour: if the image fails to
+     load the board still reads correctly on --panel-2. */
+  background-color: var(--panel-2);
+  background-image: linear-gradient(rgba(12, 15, 18, 0.55), rgba(12, 15, 18, 0.55)), url("../assets/desk-felt.webp");
+  background-size: auto, 320px 320px;
+  background-repeat: repeat;
 }
 body.html-mode #dom-board { display: flex; }
 
