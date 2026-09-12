@@ -109,6 +109,19 @@ button { font: inherit; }
   white-space: nowrap;
 }
 
+#hud-player {
+  flex: 0 1 auto;
+  max-width: 34%;
+}
+
+#hud-sync {
+  flex: 0 0 auto;
+  font-size: 0.75rem;
+}
+
+#hud-sync[data-state="synced"] { color: var(--accent); }
+#hud-sync[data-state="error"] { color: var(--danger); }
+
 .topbar-actions { display: flex; gap: 0.5rem; }
 
 #layout {

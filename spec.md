@@ -33,7 +33,7 @@ to put a card that has nowhere to go — Open Cells is the puzzle of spending th
 | `src/render.js` | Three.js scene: procedural desk geometry, canvas-drawn card textures, quality tiers, pooled particles, context-loss recovery, raycast intents. |
 | `src/board-dom.js` | The HTML board — real `<button>` cards and slots, arrow-key navigation, ARIA labels. |
 | `src/ui.js` | 14 overlay screens, focus trap and restore, HUD, live-region announcements, settings form. |
-| `src/platform.js` | Settings, save document, local boards, score submission, time sync, telemetry consent. |
+| `src/platform.js` | Launch-token handling, settings, save document, local boards, read-only hosted leaderboard, profile nickname, cloud-save mirror, dev-server time sync/telemetry. |
 | `src/audio.js` | Four buses, authored one-shots from `sfx/`, procedural fallbacks, adaptive pad. |
 | `src/main.js` | App state machine, input routing, tick loop, results and progression bookkeeping. |
 | `server.js` | Authoritative host script and standalone static server. |
@@ -380,25 +380,34 @@ defaulting to `navigator.languages` with a settings override, and the nine catal
 `starhermit.txt` declares `name`, `launch=index.html`, `owner`, `server=server.js`, `version` and
 `cover=coverart.png`, per https://wiki.starhermit.com/ conventions.
 
-**Used** (all through same-origin `/api/v1/*`, all optional — `apiAvailable()` probes once and the
-game degrades to local-only silently):
+**Used** (same-origin `/api/v1/*`; hosted mode activates iff a launch token was
+read — `#game_token=<jwt>` in the URL fragment, stripped after reading; the JWT
+payload supplies `sub` and `game_scope`. Query-param token fallbacks work only on
+the local dev server. `localStorage` stays the offline cache):
 
 | Feature | Endpoint | Behaviour |
 |---|---|---|
-| Time sync | `GET /api/v1/time` | Clock offset applied to `now()`, so the daily rollover follows host time. |
-| Leaderboards | `POST /api/v1/scores`, `GET /api/v1/boards?name=` | Ranked submissions carry the replay envelope; the host re-validates it (`score-replay-mismatch`) and ranks validated claims above casual ones. The `boards` response strips submitter identity. |
-| Achievements | `POST /api/v1/achievements` | Durable, idempotent; the response distinguishes a first grant from a repeat. |
-| Presence | `POST /api/v1/presence` | Heartbeat while a deal is active. |
-| Activity | `POST /api/v1/activity` | `start` / `end` around each deal. |
-| Telemetry | `POST /api/v1/telemetry` | Allow-listed events only, and only with explicit consent (`telemetryConsent`, default off). |
+| Token refresh | `POST /api/v1/games/{slug}/launch-token` | Re-mints the scoped token every 45 min (tokens live 60 min); failures retry after ~60 s. Every REST call carries `Authorization: Bearer`. |
+| Identity | `GET /api/v1/users/{sub}/profile` | Nickname shown in the topbar player slot; `"Player " + id.slice(0,8)` fallback. Never `/api/v1/me`, never usernames. |
+| Cloud save | `GET`/`PUT /api/v1/me/cloud-saves/{slug}` | Save doc + local boards as one stored zip (base64), ≤10 MB slot. Saves debounce 2 s and flush on pagehide; loads prefer the remote copy when newer; topbar shows sync state. |
+| Leaderboard (read) | `GET /api/v1/games/{slug}`, `GET /api/v1/leaderboards/{id}/entries` | Read-only; entries resolve user ids to nicknames via the profile route. Personal bests stay local + cloud-mirrored. Clients never submit scores. |
+| Daily clock | — | No client-reachable host time endpoint: the daily boundary uses the device clock when hosted; the local dev server still offers `GET /api/v1/time` sync. |
 
-**Not used:** matchmaking, realtime sockets, chat, parties, cloud saves, purchases. Open Cells is
-single-player; the only shared state is the seeded daily deal and the boards.
+**Local dev server only** (`server.js` on localhost; never called on the StarHermit
+host): `GET /api/v1/time`, `POST /api/v1/scores` (replay-validated), `GET
+/api/v1/boards`, `POST /api/v1/presence`, `POST /api/v1/activity`, `POST
+/api/v1/telemetry` (consent-gated). `server.js` keeps its hardening: per-identity
+rate limiting with bucket pruning, strict type validation on
+`seed`/`moves`/`durationMs`/`contentVersion`/`invalid` (422 with a stable error
+id), `400` on a malformed percent-escape, a `__dirname + path.sep` static
+boundary, and a body-size cap. Data lives in `.server-data/` (gitignored) or
+`OPEN_CELLS_DATA`.
 
-Server hardening in `server.js`: per-identity rate limiting with bucket pruning, strict type
-validation on `seed`/`moves`/`durationMs`/`contentVersion`/`invalid` (422 with a stable error id),
-`400` on a malformed percent-escape, a `__dirname + path.sep` static boundary, and a body-size cap.
-Data lives in `.server-data/` (gitignored) or `OPEN_CELLS_DATA`.
+**Not used:** matchmaking, realtime sockets, chat, parties, purchases. Open Cells
+is single-player; the only shared state is the seeded daily deal and the
+leaderboard. Achievements stay local (part of the cloud-saved doc); `server.js`
+is a Node static/API server, not a Jint game script, so there is no
+server-authoritative unlock path.
 
 ---
 

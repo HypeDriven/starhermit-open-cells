@@ -54,6 +54,7 @@
 
     app.ui = global.OCUi.createUi(document, actions);
     app.ui.bindHud(document);
+    P.onStatus(function (st) { app.ui.updatePlayer(st); });
     app.ui.applySettings(app.settings);
 
     var canvas = $('#scene');
@@ -94,6 +95,26 @@
     wireGlobalInput();
     wireLifecycle();
     P.syncTime();
+    // Hosted: adopt the cloud mirror when it is newer than the local cache
+    // (remote-preferred on conflict). localStorage stays the offline cache.
+    P.loadCloudSave().then(function (remote) {
+      if (!remote) return;
+      var changed = false;
+      var remoteTime = Date.parse((remote.save && remote.save.updatedAt) || '') || 0;
+      var localTime = Date.parse(app.save.updatedAt || '') || 0;
+      if (remote.save && (!app.save.updatedAt || remoteTime > localTime)) {
+        app.save = P.adoptSave(remote.save);
+        changed = true;
+        app.ui.announce('Progress restored from your StarHermit cloud save.', false);
+      }
+      if (remote.boards && remote.boards.boards) changed = P.mergeBoards(remote.boards) || changed;
+      if (!changed) return;
+      P.persistSave(app.save);
+      if (app.phase === 'title' && app.ui.topScreenName() === 'title') {
+        app.ui.closeAll();
+        showTitle();
+      }
+    });
 
     app.phase = 'title';
     showTitle();
@@ -133,6 +154,11 @@
     app.ui.showTitle(titleData());
   }
 
+  function dailyClockMode() {
+    if (P.apiAvailable()) return 'hosted';
+    return P.clockSynced() ? 'synced' : 'local';
+  }
+
   var actions = {
     onPlay: function () {
       if (app.save.lastSnapshot) { resumeSnapshot(); return; }
@@ -141,12 +167,12 @@
     onMode: function (id) {
       if (id === 'learn') app.ui.showLearn(titleData());
       else if (id === 'journey') app.ui.showJourney(titleData());
-      else if (id === 'daily') app.ui.showDailySetup(C.dailyInfo(P.now()), P.apiAvailable());
+      else if (id === 'daily') app.ui.showDailySetup(C.dailyInfo(P.now()), dailyClockMode());
       else if (id === 'practice') app.ui.showPracticeSetup();
       else if (id === 'challenge') app.ui.showChallengeSetup();
       else if (id === 'chase') app.ui.showChaseSetup();
     },
-    onDaily: function () { app.ui.showDailySetup(C.dailyInfo(P.now()), P.apiAvailable()); },
+    onDaily: function () { app.ui.showDailySetup(C.dailyInfo(P.now()), dailyClockMode()); },
     onStartJourney: startJourney,
     onStartLesson: startLesson,
     onStartPractice: startPractice,
@@ -367,9 +393,10 @@
         updateHud();
       }
     }, 250);
-    // Throttled presence heartbeat while actively playing (hosted only).
+    // Throttled presence heartbeat while actively playing (local dev server
+    // only — the platform host has no client-reachable presence route).
     app.presenceTimer = setInterval(function () {
-      if (app.phase === 'active' && !document.hidden && P.apiAvailable()) {
+      if (app.phase === 'active' && !document.hidden && P.devApiAvailable()) {
         P.apiFetch('/api/v1/presence', { method: 'POST', body: { game: 'open-cells' } }).catch(function () {});
       }
     }, 30000);
@@ -382,7 +409,7 @@
   }
 
   function activity(kind) {
-    if (P.apiAvailable()) {
+    if (P.devApiAvailable()) {
       P.apiFetch('/api/v1/activity', { method: 'POST', body: { event: kind } }).catch(function () {});
     }
   }
@@ -1004,6 +1031,7 @@
       localStorage.removeItem('open-cells/settings/v1');
       localStorage.removeItem('open-cells/boards/v1');
     } catch (e) {}
+    P.wipeCloudSave();
     global.location.reload();
   }
 

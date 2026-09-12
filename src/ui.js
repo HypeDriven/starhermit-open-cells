@@ -270,12 +270,14 @@
       }, { title: 'Challenge', wide: true });
     }
 
-    function showDailySetup(daily, serverTimeOk) {
+    function showDailySetup(daily, clockMode) {
       openScreen('daily-setup', function (body) {
         body.appendChild(el('p', null, 'Deal ' + daily.date + ' · seed ' + daily.seed + ' · standard rules · par ' + daily.par.moves + ' moves.'));
-        body.appendChild(el('p', null, serverTimeOk
-          ? 'Clock synchronized with the host.'
-          : 'Offline: using this device’s clock for the daily boundary.'));
+        body.appendChild(el('p', null, clockMode === 'hosted'
+          ? 'Hosted on StarHermit — the daily boundary uses this device’s clock.'
+          : clockMode === 'synced'
+            ? 'Clock synchronized with the host.'
+            : 'Offline: using this device’s clock for the daily boundary.'));
         body.appendChild(el('p', null, 'One result per day counts for your streak. Ranked.'));
         body.appendChild(button('Play today’s deal', 'btn btn-primary', function () {
           closeAll(); actions.onStartDaily(daily);
@@ -460,6 +462,26 @@
 
     function showBoards() {
       openScreen('boards', function (body) {
+        var hostedSlot = el('div');
+        body.appendChild(hostedSlot);
+        if (P.apiAvailable()) {
+          hostedSlot.appendChild(el('h3', null, 'StarHermit leaderboard'));
+          var note = el('p', 'board-note', 'Loading…');
+          hostedSlot.appendChild(note);
+          P.getHostedLeaderboard().then(function (lb) {
+            if (!lb) { note.textContent = 'Global leaderboard unavailable — local records below.'; return; }
+            if (lb.me && (lb.me.rank != null || lb.me.score != null)) {
+              note.textContent = 'Your best: '
+                + (lb.me.score != null ? lb.me.score + (lb.me.rank != null ? ' · rank ' + lb.me.rank : '') : 'rank ' + lb.me.rank)
+                + '.';
+            }
+            if (!lb.entries.length) {
+              if (!lb.me) note.textContent = 'No global entries yet — local records below.';
+              return;
+            }
+            hostedSlot.appendChild(hostedTable(lb.entries));
+          });
+        }
         var names = ['daily', 'journey', 'chase', 'challenge'];
         var labels = { daily: 'Daily board', journey: 'Journey board', chase: 'Score chase', challenge: 'Challenge board' };
         names.forEach(function (boardName) {
@@ -481,6 +503,25 @@
         });
         body.appendChild(ul);
       }, { title: 'Scores & achievements', wide: true });
+    }
+
+    function hostedTable(entries) {
+      var table = el('table', 'board-table');
+      var thead = el('thead');
+      var hr = el('tr');
+      ['#', 'Player', 'Score'].forEach(function (h) { hr.appendChild(el('th', null, h)); });
+      thead.appendChild(hr);
+      table.appendChild(thead);
+      var tbody = el('tbody');
+      entries.forEach(function (e, i) {
+        var tr = el('tr');
+        tr.appendChild(el('td', null, String(e.rank != null ? e.rank : i + 1)));
+        tr.appendChild(el('td', null, e.name || 'Player'));
+        tr.appendChild(el('td', null, String(e.score != null ? e.score : '')));
+        tbody.appendChild(tr);
+      });
+      table.appendChild(tbody);
+      return table;
     }
 
     function boardTable(entries) {
@@ -580,7 +621,9 @@
         deal: rootEl.querySelector('#hud-deal'),
         lesson: rootEl.querySelector('#hud-lesson'),
         leftRail: rootEl.querySelector('#rail-left'),
-        undoCount: rootEl.querySelector('#hud-undo-count')
+        undoCount: rootEl.querySelector('#hud-undo-count'),
+        player: rootEl.querySelector('#hud-player'),
+        sync: rootEl.querySelector('#hud-sync')
       };
     }
 
@@ -596,6 +639,24 @@
       if (hudEls.lesson) {
         hudEls.lesson.textContent = d.lessonText || '';
         hudEls.lesson.classList.toggle('hidden', !d.lessonText);
+      }
+    }
+
+    // Player identity + cloud sync state, shown in the topbar when hosted.
+    function updatePlayer(st) {
+      if (!hudEls) return;
+      if (hudEls.player) {
+        hudEls.player.textContent = st.name || '';
+        hudEls.player.hidden = !st.name;
+      }
+      if (hudEls.sync) {
+        var label = st.sync === 'saving' ? 'saving…'
+          : st.sync === 'synced' ? 'cloud save ✓'
+          : st.sync === 'error' ? 'sync failed'
+          : '';
+        hudEls.sync.textContent = label;
+        hudEls.sync.dataset.state = st.sync || '';
+        hudEls.sync.hidden = !label;
       }
     }
 
@@ -617,6 +678,10 @@
       closeTop: closeTop,
       closeAll: closeAll,
       hasOpenScreen: function () { return openStack.length > 0; },
+      topScreenName: function () {
+        var top = openStack[openStack.length - 1];
+        return top ? top.dataset.screen : null;
+      },
       showTitle: showTitle,
       showModes: showModes,
       showJourney: showJourney,
@@ -632,6 +697,7 @@
       showResults: showResults,
       bindHud: bindHud,
       updateHud: updateHud,
+      updatePlayer: updatePlayer,
       applySettings: applySettings
     };
   }
