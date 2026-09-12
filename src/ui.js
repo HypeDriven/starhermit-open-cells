@@ -77,10 +77,26 @@
       var heading = el('h2', 'screen-title', opts.title || name);
       heading.tabIndex = -1;
       dialog.appendChild(heading);
+      // Every overlay carries a persistent 44px Close control (touch-reachable
+      // dismissal), alongside Escape and outside taps.
+      if (!opts.noEscape) {
+        var closeBtn = button('✕', 'btn btn-ghost screen-close', function () {
+          closeTop();
+          if (actions.onOverlayClosed) actions.onOverlayClosed(name);
+        });
+        closeBtn.setAttribute('aria-label', 'Close ' + (opts.title || name));
+        dialog.appendChild(closeBtn);
+        overlay.addEventListener('click', function (ev) {
+          if (ev.target === overlay) { closeTop(); if (actions.onOverlayClosed) actions.onOverlayClosed(name); }
+        });
+      }
       var body = el('div', 'screen-body');
       dialog.appendChild(body);
       overlay.appendChild(dialog);
       buildFn(body, dialog);
+      if (!opts.noEscape && name === 'help') {
+        body.appendChild(button('Back', 'btn btn-primary', function () { closeTop(); if (actions.onOverlayClosed) actions.onOverlayClosed(name); }));
+      }
       screensEl.appendChild(overlay);
       openStack.push(overlay);
 

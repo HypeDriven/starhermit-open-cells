@@ -572,3 +572,8 @@ html.reduced-motion #dom-board .card.selected { transform: none; }
   #rail-left p { margin: 0; }
   #hud-lesson { flex-basis: 100%; }
 }
+
+/* persistent close control on every overlay (touch-reachable dismissal) */
+.screen { position: relative; }
+.screen-close { position: absolute; top: 8px; right: 8px; min-width: 44px; min-height: 44px; font-size: 1.1rem; }
+.screen-title { padding-right: 52px; }

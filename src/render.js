@@ -71,20 +71,23 @@
     }
     // Corner indices (top-left + bottom-right, rotated).
     g.fillStyle = ink;
-    g.font = 'bold 26px Georgia, serif';
-    g.textAlign = 'center'; g.textBaseline = 'top';
+    // Rank strip: large index + suit side by side so the exposed strip of a
+    // stacked card stays legible even at phone sizes.
+    g.font = 'bold 36px Georgia, serif';
+    g.textAlign = 'left'; g.textBaseline = 'top';
     var label = R.RANK_LABELS[rank - 1];
     var sym = R.SUIT_SYMBOLS[suit];
-    g.fillText(label, 18, 6);
-    g.font = '20px Georgia, serif';
-    g.fillText(sym, 18, 34);
+    g.fillText(label, 8, 4);
+    g.font = '30px Georgia, serif';
+    g.fillText(sym, label.length > 1 ? 52 : 36, 6);
     g.save();
     g.translate(W, H); g.rotate(Math.PI);
-    g.font = 'bold 26px Georgia, serif';
-    g.fillText(label, 18, 6);
-    g.font = '20px Georgia, serif';
-    g.fillText(sym, 18, 34);
+    g.font = 'bold 36px Georgia, serif';
+    g.fillText(label, 8, 4);
+    g.font = '30px Georgia, serif';
+    g.fillText(sym, label.length > 1 ? 52 : 36, 6);
     g.restore();
+    g.textAlign = 'center';
     // Center: big suit glyph; court cards get a simple geometric sigil so no
     // two ranks rely on color alone (shape-reinforced, spec §3).
     g.font = '54px Georgia, serif';
@@ -426,10 +429,10 @@
 
     function fitCamera(aspect) {
       // Framing constants from CAMERA; fit the 10.6-wide board and its depth.
-      var needW = 10.9, needH = 9.0;
+      var needW = 10.7, needH = 8.8;
       var vFit = needH / (2 * Math.tan(THREE.MathUtils.degToRad(CAMERA.fov / 2)));
       var hFit = needW / (2 * Math.tan(THREE.MathUtils.degToRad(CAMERA.fov / 2)) * aspect);
-      var dist = Math.max(vFit, hFit) * 1.02;
+      var dist = Math.max(vFit, hFit) * 1.0;
       var t = dist / CAMERA.dist;
       camera.position.set(0, CAMERA.height * t, CAMERA.back * t);
       camera.lookAt(0, 0, CAMERA.lookZ);
