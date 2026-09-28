@@ -63,7 +63,7 @@
       try {
         app.renderer = global.OCRender.createRenderer(canvas, {
           theme: currentTheme(),
-          quality: resolveQuality(),
+          graphics: graphicsSettings(),
           reducedMotion: app.settings.reducedMotion
         });
         app.renderer.onPointerAction(onPointerAction);
@@ -127,11 +127,16 @@
     return t || C.THEMES[0];
   }
 
-  function resolveQuality() {
-    if (app.settings.quality !== 'auto') return app.settings.quality;
-    var dpr = global.devicePixelRatio || 1;
-    var small = Math.min(screen.width, screen.height) < 760;
-    return small || dpr > 2.5 ? 'medium' : 'high';
+  // Saved Graphics settings; players who only ever chose the legacy
+  // "Quality tier" keep that choice as their preset.
+  function graphicsSettings() {
+    return app.settings.graphics || global.OCGfx.fromLegacy(app.settings.quality);
+  }
+
+  // What the Graphics panel shows (GPU, Auto's choice, resolved tiers, cost).
+  function graphicsInfo() {
+    if (app.renderer) return app.renderer.graphicsInfo();
+    return null;
   }
 
   // ---------------------------------------------------------------- title & modes
@@ -184,6 +189,7 @@
     onLeave: leaveToTitle,
     onNext: nextAfterResults,
     onSettingsChanged: applySettings,
+    graphicsInfo: graphicsInfo,
     onWipe: wipeAll,
     onOverlayClosed: function (name) {
       if (name === 'pause' && app.phase === 'paused') resumeGame();
@@ -1013,7 +1019,7 @@
     A.setMuted(s.muted);
     if (app.renderer) {
       app.renderer.setReducedMotion(s.reducedMotion);
-      app.renderer.setQuality(resolveQuality());
+      app.renderer.setGraphics(graphicsSettings());
       app.renderer.setTheme(currentTheme());
     }
     // HTML mode can be toggled at runtime; it only takes effect next load for

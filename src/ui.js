@@ -411,12 +411,9 @@
         toggle(ga, 'muted', 'Mute all', 'Silence every bus at once.');
 
         var gg = group('Graphics');
-        select(gg, 'quality', 'Quality tier', [
-          { value: 'auto', label: 'Auto' }, { value: 'low', label: 'Low' },
-          { value: 'medium', label: 'Medium' }, { value: 'high', label: 'High' }
-        ]);
         select(gg, 'theme', 'Theme', C.THEMES.map(function (t) { return { value: t.id, label: t.name }; }));
         toggle(gg, 'reducedMotion', 'Reduced motion', 'Removes camera moves, shake, particles, and large scaling.');
+        buildGraphics(gg);
 
         var gx = group('Accessibility');
         toggle(gx, 'highContrast', 'High contrast', 'Stronger outlines and text contrast.');
@@ -446,6 +443,149 @@
 
         body.appendChild(button('Done', 'btn btn-primary', function () { closeTop(); }));
       }, { title: 'Settings', wide: true });
+    }
+
+    // ------------------------------------------------------------ graphics
+
+    // Graphics quality controls (preset, render scale, per-effect overrides,
+    // adaptive resolution, frame-rate readout, cost summary). Strings come
+    // from OCGfx in the browser's language; ids are stable for tests.
+    function buildGraphics(parent) {
+      var G = global.OCGfx;
+      var t = G.strings(global.navigator && navigator.language);
+      var box = el('div', 'gfx-settings');
+      box.id = 'gfx-settings';
+      parent.appendChild(box);
+
+      function saved() {
+        var st = P.getSettings();
+        return st.graphics || G.fromLegacy(st.quality);
+      }
+      function save(g) {
+        var st = P.updateSettings({ graphics: g });
+        actions.onSettingsChanged(st);
+      }
+      function info() { return actions.graphicsInfo ? actions.graphicsInfo() : null; }
+
+      function selectRow(id, label, options, value, onChange) {
+        var wrap = el('label', 'setting-select');
+        wrap.appendChild(el('span', null, label));
+        var sel = el('select');
+        sel.id = id;
+        sel.setAttribute('aria-label', label);
+        options.forEach(function (o) {
+          var opt = el('option', null, o.label);
+          opt.value = o.value;
+          if (o.value === value) opt.selected = true;
+          sel.appendChild(opt);
+        });
+        sel.addEventListener('change', function () { onChange(sel.value); });
+        wrap.appendChild(sel);
+        box.appendChild(wrap);
+        return sel;
+      }
+      function toggleRow(id, label, desc, checked, onChange) {
+        var wrap = el('label', 'setting-toggle');
+        var input = el('input');
+        input.type = 'checkbox';
+        input.id = id;
+        input.checked = !!checked;
+        input.addEventListener('change', function () { onChange(input.checked); });
+        wrap.appendChild(input);
+        var sp = el('span', null);
+        sp.appendChild(el('strong', null, label));
+        if (desc) sp.appendChild(el('small', null, desc));
+        wrap.appendChild(sp);
+        box.appendChild(wrap);
+      }
+
+      var summaryEl = null, noteEl = null;
+      function refreshSummary() {
+        if (!summaryEl) return;
+        var inf = info();
+        var r = inf ? inf.resolved : G.resolve(saved(), 'balanced');
+        var gpu = inf && inf.gpu ? inf.gpu : t('unknownGpu');
+        summaryEl.textContent = gpu + ' · ' + G.describe(r, inf ? inf.pixels : null, t) +
+          (inf && r.showFps && inf.fps ? ' · ' + inf.fps + ' fps' : '');
+        summaryEl.dataset.preset = r.preset;
+        var msg = !inf ? t('noScene') : (inf.postFailed && r.post ? t('postFailed') : '');
+        noteEl.textContent = msg;
+        noteEl.hidden = !msg;
+      }
+
+      function render(focusId) {
+        box.textContent = '';
+        var s = saved();
+        var inf = info();
+        var detected = inf ? inf.detected : 'balanced';
+        var r = G.resolve(s, detected);
+        box.dataset.preset = r.preset;
+
+        var presetOpts = [{ value: 'auto', label: t('auto', t(detected)) }].concat(
+          G.PRESETS.map(function (p) { return { value: p, label: t(p) }; }));
+        selectRow('gfx-preset', t('quality'), presetOpts, r.auto ? 'auto' : r.preset, function (v) {
+          save(G.choosePreset(saved(), v)); // choosing a preset clears overrides
+          render('gfx-preset');
+        });
+
+        var sw = el('label', 'setting-slider gfx-scale');
+        sw.appendChild(el('span', null, t('renderScale')));
+        var range = el('input');
+        range.type = 'range'; range.min = '50'; range.max = '200'; range.step = '10';
+        range.id = 'gfx-scale';
+        range.value = String(Math.round(r.renderScale * 100));
+        range.setAttribute('aria-label', t('renderScale'));
+        var out = el('output', 'gfx-scale-value', range.value + '%');
+        out.id = 'gfx-scale-value';
+        range.addEventListener('input', function () { out.textContent = range.value + '%'; });
+        range.addEventListener('change', function () {
+          var g = Object.assign({}, saved(), { render_scale: parseInt(range.value, 10) / 100 });
+          save(g);
+          refreshSummary();
+        });
+        sw.appendChild(range);
+        sw.appendChild(out);
+        box.appendChild(sw);
+
+        Object.keys(G.CATEGORIES).forEach(function (cat) {
+          var opts = [{ value: 'preset', label: t('fromPreset', t('t_' + G.presetTier(r.preset, cat))) }].concat(
+            G.CATEGORIES[cat].map(function (tier) { return { value: tier, label: t('t_' + tier) }; }));
+          var cur = G.CATEGORIES[cat].indexOf(s[cat]) >= 0 ? s[cat] : 'preset';
+          var sel = selectRow('gfx-' + cat, t('cat_' + cat), opts, cur, function (v) {
+            var g = Object.assign({}, saved());
+            if (v === 'preset') delete g[cat]; else g[cat] = v;
+            save(g);
+            refreshSummary();
+          });
+          sel.dataset.gfxCategory = cat;
+        });
+
+        toggleRow('gfx-adaptive', t('adaptive'), t('adaptiveDesc'), r.adaptive, function (v) {
+          save(Object.assign({}, saved(), { adaptive: v }));
+          refreshSummary();
+        });
+        toggleRow('gfx-fps', t('showFps'), t('showFpsDesc'), r.showFps, function (v) {
+          save(Object.assign({}, saved(), { show_fps: v }));
+          refreshSummary();
+        });
+
+        summaryEl = el('p', 'gfx-summary');
+        summaryEl.id = 'gfx-summary';
+        summaryEl.setAttribute('aria-live', 'off');
+        box.appendChild(summaryEl);
+        noteEl = el('p', 'gfx-note');
+        noteEl.id = 'gfx-note';
+        box.appendChild(noteEl);
+        refreshSummary();
+        if (focusId) { var f = document.getElementById(focusId); if (f) f.focus(); }
+      }
+
+      render();
+      // Keep pixels / fps / post status current while the panel is open.
+      var timer = setInterval(function () {
+        if (!box.isConnected) { clearInterval(timer); return; }
+        refreshSummary();
+      }, 1000);
     }
 
     // ------------------------------------------------------------ help

@@ -25,7 +25,8 @@
 
   var DEFAULT_SETTINGS = {
     theme: 'brass-slate',
-    quality: 'auto',            // 'auto' | 'low' | 'medium' | 'high'
+    quality: 'auto',            // legacy tier; superseded by `graphics`
+    graphics: null,             // { preset, render_scale, adaptive, show_fps, <category> } (see src/gfx.js)
     reducedMotion: false,
     highContrast: false,
     largerText: false,

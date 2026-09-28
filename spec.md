@@ -30,7 +30,9 @@ to put a card that has nowhere to go — Open Cells is the puzzle of spending th
 | `src/rules.js` | Pure engine: deal, legality, supermove capacity, safe autoplay, scoring, terminal reasons, hashing, seeded RNG. No DOM. |
 | `src/session.js` | Validated commands, undo snapshots, replay envelope + `validateReplay`, hints, lesson tracking, event emission. |
 | `src/content.js` | 6 lessons, 40 journey stages, 6 challenges, 3 practice difficulties, daily derivation, 5 themes, 5 achievements. |
-| `src/render.js` | Three.js scene: procedural desk geometry, canvas-drawn card textures, quality tiers, pooled particles, context-loss recovery, raycast intents. |
+| `src/render.js` | Three.js scene: procedural desk geometry, canvas-drawn card and surface textures, image-based lighting, post-processing chain, Graphics settings (`setGraphics`, `graphicsInfo`), adaptive resolution, pooled particles and dust motes, context-loss recovery, raycast intents. |
+| `src/gfx.js` | Pure graphics quality model (no three.js): presets, per-category tiers, GPU-based Auto detection, `resolve()`, `presetTier()`, `choosePreset()`, `describe()`, and the Graphics panel strings in nine locales. |
+| `vendor/three/` | `three-global.js` (ES-module view of the vendored r152 `window.THREE`) and same-revision addons (`addons/postprocessing`, `addons/shaders`, `addons/environments/RoomEnvironment.js`), loaded on demand through the import map in `index.html`. |
 | `src/board-dom.js` | The HTML board — real `<button>` cards and slots, arrow-key navigation, ARIA labels. |
 | `src/ui.js` | 14 overlay screens, focus trap and restore, HUD, live-region announcements, settings form. |
 | `src/platform.js` | Launch-token handling, settings, save document, local boards, read-only hosted leaderboard, profile nickname, cloud-save mirror, dev-server time sync/telemetry. |
@@ -38,7 +40,8 @@ to put a card that has nowhere to go — Open Cells is the puzzle of spending th
 | `src/main.js` | App state machine, input routing, tick loop, results and progression bookkeeping. |
 | `server.js` | Authoritative host script and standalone static server. |
 | `tools/validate.js` | Offline solver proving lessons and every shipped deal seed. |
-| `tests/` | `rules.test.js`, `session.test.js` (30 `node --test` cases), `e2e.mjs` (Playwright), legacy `*.html` probes. |
+| `tests/` | `rules.test.js`, `session.test.js`, `gfx.test.js` (37 `node --test` cases), `e2e.mjs` (Playwright), legacy `*.html` probes. |
+| `tools/shots.mjs` | Visual check: title and in-game screenshots at a forced graphics preset, desktop and mobile, into `test-results/`. |
 | `sfx/` | 15 Opus clips + `manifest.txt` (canonical), `manifest.json` (generator), `manifest.md`. |
 | `assets/` | Authored key art and textures (§8). |
 
@@ -283,9 +286,37 @@ HUD, buttons and body in `system-ui`. Larger-text mode scales the root to 120 %.
 imagery on screen is behind full-screen overlays, where no card is visible.
 
 **Motion.** One eased tween class (`easeInOut`) for card travel, a bounded particle pool for the win
-burst, a small camera nudge on emphasis. Reduced motion (setting or low quality tier) makes every
-`syncState` instant, disables particles and cancels the nudge; the low quality tier also drops
-antialiasing and shadows. Nothing that motion communicates is *only* communicated by motion.
+burst, a small camera nudge on emphasis, and (Ambient motion on) dust motes drifting through the
+lamp light with a barely perceptible breathing of the key light. Reduced motion makes every
+`syncState` instant, disables particles and motes and cancels the nudge. Nothing that motion
+communicates is *only* communicated by motion.
+
+**Graphics.** The desk is lit by one warm key light (the desk lamp) with PCF soft shadows whose
+frustum is fitted to the slate slab, a hemisphere fill and a cool rim, all through ACES filmic tone
+mapping to sRGB. With Reflections on, a PMREM-filtered `RoomEnvironment` is the scene environment, so
+the brass trim and slot frames read as polished metal and the card faces (a lightly clearcoated
+physical material) carry a soft sheen that never lowers glyph contrast. The slate slab sits on a dark
+walnut desktop lit by a baked lamp pool (vertex colours) that fades into a fogged, theme-tinted room,
+so no framing shows empty background. Surface detail Detailed adds tileable procedural slate, felt
+and wood-grain textures (colour + fine bump) and draws card faces at 2× with a linen weave and a gilt
+inner rule — same layout, sizes and colours as Plain. Optional post-processing (EffectComposer on a
+half-float target): bloom limited to the untone-mapped accents (selection/target rings, particle
+sparks), a colour grade (gentle S-curve, slight saturation, warm highlights / cool shadows, lifted
+blacks) with vignette, and FXAA, SMAA or MSAA. The Settings panel's **Graphics** section (after
+Theme and Reduced motion) offers a quality preset — Auto (chosen from the unmasked GPU name:
+software renderers get Low, discrete GPUs and Apple M-series get High, others Balanced; touch devices
+are capped at Balanced), Low, Balanced, High, Ultra — a render scale (50–200 % on top of the preset's
+scale; the device pixel ratio is capped at 1 / 1.5 / 2 / 2 per preset), one override per category
+(Shadows off/low/medium/high = 0/1024/2048/4096 px maps, Reflections, Surface detail, Bloom, Colour
+grade, Anti-aliasing, Particles off/low/high, Ambient motion), each defaulting to "From preset (…)",
+adaptive resolution (averages 90 frames; above 26 ms steps down 0.1 to 60 %, under 14 ms steps back
+up) and a frame-rate readout (bottom-left of the table, never over controls), plus a summary line
+"GPU · cost summary · W×H px". Choosing a preset clears overrides; changes apply live and persist in
+the settings key as `graphics`. Low renders directly with no composer, shadows or anti-aliasing (as
+cheap as the former low tier); the composer runs only when an effect needs it. If the addons or the
+chain fail, the table renders without post-processing and the panel says so. The panel's strings
+follow `navigator.language` in the nine supported locales. `data-gfx-preset` on `<body>` and the
+canvas reports the resolved preset.
 
 **Visual assets the design calls for** (all under `assets/`, all wired through CSS so a missing file
 degrades to the flat colour): a desk key-art backdrop for the title overlay; a felt texture under
@@ -337,7 +368,9 @@ procedural synth. Pitch variants are derived from the session seed, so a replay 
 
 The required set is en-US, en-GB, es-419, es-ES, de-DE, fr-FR, fr-CA, pt-BR, it-IT.
 
-**Today:** the game ships **en-US only**. Player-visible strings live inline in `index.html`,
+**Today:** the game ships **en-US only**, except the Settings panel's Graphics controls, whose
+strings live in `src/gfx.js` for all nine locales (chosen from `navigator.language`, regional
+variants falling back to their base table, then en-US). Player-visible strings live inline in `index.html`,
 `src/ui.js`, `src/board-dom.js`, `src/main.js` (toasts, announcements) and `src/rules.js` (the
 message half of every `fail(reason, message)`), and `<html lang="en">` is static. Everything that is
 language-independent is already separated: rejection *reasons* are stable machine ids next to their
@@ -427,28 +460,32 @@ clean with an assertive announcement — it never bricks the boot. Settings and 
 separate keys with the same defensive reads. A resumable snapshot is written at most every 2 s and
 on `beforeunload`.
 
-**Rendering budget.** Quality tiers `auto|low|medium|high`; `auto` picks by screen size. Low drops
-antialiasing, shadows and particles. Textures are cached per card+theme and disposed on theme change;
+**Rendering budget.** Graphics presets `auto|low|balanced|high|ultra` plus per-category overrides
+(§8, `src/gfx.js`); a saved legacy `quality` tier maps to the matching preset. Low drops
+anti-aliasing, shadows, reflections, post-processing and particles, and caps the pixel ratio at 1. Textures are cached per card+theme and disposed on theme change;
 the particle pool is fixed-size and never a raycast target; WebGL context loss is caught and the
 scene rebuilt. Devices without WebGL (or with the HTML-board setting on) get the DOM board with an
 explanatory note — no error path.
 
 **How the e2e drives the real UI.** `tests/e2e.mjs` serves the folder from an ephemeral port with a
 stubbed `/api/v1/*`, launches Chrome through `playwright-core`, and at 1280×800 and 390×844 clicks
-the visible buttons: title → Settings → HTML board → Play → two legal moves found by asking the live
+the visible buttons: title → Settings → Graphics (Low, High, a bloom override, frame-rate readout,
+preset-clears-overrides, reload persistence, back to Auto) → HTML board → Play → two legal moves found by asking the live
 engine for a legal action and then *clicking the corresponding DOM buttons* (falling back to focus +
 Enter) → Hint → Collect → Undo → Pause/Resume → Settings persistence → Concede → results → a full
-Learn lesson. It fails on any non-allow-listed console error and screenshots each step.
+Learn lesson. It fails on any non-allow-listed console error or warning and screenshots each step.
 
 ---
 
 ## 14. Testing and acceptance criteria
 
-`npm test` → `node --test tests/rules.test.js tests/session.test.js`, **30 cases**: card identity and
+`npm test` → `node --test tests/rules.test.js tests/session.test.js tests/gfx.test.js`, **37 cases**: card identity and
 colour, deal shape and seed stability, ordered runs and capacity maths, every rejection reason,
 safe-autoplay cascades, scoring components and tie-breaks, terminal reasons, serialization round-trip
 and shape validation, hint ranking, undo/replay determinism, replay tamper detection, lesson stepping,
-integer tick accounting, and a fuzz pass of random commands that must never corrupt the deck.
+integer tick accounting, a fuzz pass of random commands that must never corrupt the deck, and the
+graphics model (GPU detection, preset/override resolution, render-scale clamp, preset clears
+overrides, legacy migration, cost summary, locale coverage).
 
 `npm run test:e2e` → the flow in §13, both viewports, zero page errors.
 `npm run validate` → the offline solver over lessons, journey, challenges and dailies.

@@ -79,7 +79,9 @@ async function runPass(browser, vpName, contextOptions) {
   const context = await browser.newContext(contextOptions);
   const page = await context.newPage();
   page.on('pageerror', (e) => errors.push(`[${vpName}] pageerror: ${e.message}`));
-  page.on('console', (m) => { if (m.type() === 'error') errors.push(`[${vpName}] console: ${m.text()}`); });
+  page.on('console', (m) => {
+    if (m.type() === 'error' || m.type() === 'warning') errors.push(`[${vpName}] console ${m.type()}: ${m.text()}`);
+  });
   page.on('dialog', (d) => d.accept()); // concede/restart confirmations
   errors.length = 0;
 
@@ -102,6 +104,54 @@ async function runPass(browser, vpName, contextOptions) {
       await waitApp(() => window.__ocApp && window.__ocApp.ui && window.__ocApp.phase === 'title');
       await overlay('title').waitFor({ state: 'visible' });
       await page.screenshot({ path: SHOT('title', vpName) });
+    });
+
+    await step('Graphics settings: presets, override, live apply, persists across reload', async () => {
+      const gfx = (id) => overlay('settings').locator(`#${id}`);
+      const bodyPreset = () => app(() => document.body.dataset.gfxPreset);
+      await overlayButton('title', /^settings$/i);
+      await overlay('settings').waitFor({ state: 'visible' });
+      // Headless runs use a software GPU, so Auto resolves to Low.
+      const autoLabel = await gfx('gfx-preset').locator('option[value="auto"]').textContent();
+      if (!/low/i.test(autoLabel)) throw new Error(`Auto should detect Low on a software GPU, got "${autoLabel}"`);
+      await gfx('gfx-preset').selectOption('low');
+      await waitApp(() => document.body.dataset.gfxPreset === 'low');
+      if (!/no shadows/.test(await gfx('gfx-summary').textContent())) throw new Error('Low summary should report no shadows');
+      await gfx('gfx-preset').selectOption('high');
+      await waitApp(() => document.body.dataset.gfxPreset === 'high');
+      await waitApp(() => /2048² shadows/.test(document.getElementById('gfx-summary').textContent));
+      // Per-category override: bloom off, then the summary drops it.
+      await gfx('gfx-bloom').selectOption('off');
+      await waitApp(() => !/bloom/.test(document.getElementById('gfx-summary').textContent));
+      await gfx('gfx-fps').check();
+      await page.locator('#fps-meter').waitFor({ state: 'attached' });
+      await gfx('gfx-scale').scrollIntoViewIfNeeded();
+      await page.screenshot({ path: SHOT('graphics', vpName) });
+      const stored = await app(() => JSON.parse(localStorage.getItem('open-cells/settings/v1')).graphics);
+      if (stored.preset !== 'high' || stored.bloom !== 'off' || !stored.show_fps) {
+        throw new Error('graphics settings not persisted: ' + JSON.stringify(stored));
+      }
+      // Choosing a preset clears overrides.
+      await gfx('gfx-preset').selectOption('ultra');
+      await waitApp(() => document.body.dataset.gfxPreset === 'ultra');
+      if ((await gfx('gfx-bloom').inputValue()) !== 'preset') throw new Error('preset change did not clear overrides');
+      await gfx('gfx-preset').selectOption('high');
+      await gfx('gfx-bloom').selectOption('off');
+      await page.waitForTimeout(500);
+
+      await page.reload({ waitUntil: 'load' });
+      await waitApp(() => window.__ocApp && window.__ocApp.phase === 'title');
+      if ((await bodyPreset()) !== 'high') throw new Error('graphics preset did not survive reload');
+      await overlayButton('title', /^settings$/i);
+      await overlay('settings').waitFor({ state: 'visible' });
+      if ((await gfx('gfx-preset').inputValue()) !== 'high') throw new Error('preset select not restored');
+      if ((await gfx('gfx-bloom').inputValue()) !== 'off') throw new Error('override not restored');
+      // Back to Auto (Low here) so the playthrough stays cheap.
+      await gfx('gfx-fps').uncheck();
+      await gfx('gfx-preset').selectOption('auto');
+      await waitApp(() => document.body.dataset.gfxPreset === 'low');
+      await overlayButton('settings', /^done$/i);
+      await overlay('settings').waitFor({ state: 'detached' });
     });
 
     await step('enable HTML board via settings (semantic board is clickable)', async () => {
