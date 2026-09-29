@@ -556,3 +556,7 @@ overrides, legacy migration, cost summary, locale coverage).
 4. **Voice bus content** — the bus exists and is mixed, but nothing is routed to it.
 5. **A brass card-back texture** for the 3D scene's face-down states; the scene currently has no
    face-down card, so `backTexture` is drawn procedurally and no authored art is wired to it.
+
+## Browser interference
+
+`browser-guard.js` (loaded from `index.html`) suppresses browser UI that gets in the way of play: the right-click context menu, the iOS long-press callout, copy / cut / paste, and page text selection. Text fields (inputs, textareas, selects, contenteditable) keep normal selection, context menu and clipboard behaviour.
