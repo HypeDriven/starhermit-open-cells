@@ -9,8 +9,8 @@
  * fresh mobile context 390x844 with touch.
  *
  * Notes:
- *  - The game is fully playable offline; the StarHermit backend (server.js)
- *    is optional and NOT used here — the test embeds its own static server.
+ *  - The game is fully playable offline; the test embeds its own plain static
+ *    server (no /api routes) and fails on any same-origin /api or /ws request.
  *  - Concede/restart use window.confirm(); the test accepts those dialogs.
  *  - On mobile (<=1023px) the right rail (incl. Concede) is hidden by design
  *    and the bottom tray mirrors Undo/Hint/Collect/Pause, so the mobile pass
@@ -42,17 +42,6 @@ const browserNoise = /GL Driver Message|GPU stall due to ReadPixels|Automatic fa
 const server = http.createServer(async (req, res) => {
   try {
     const url = new URL(req.url, 'http://localhost');
-    // Stub the optional StarHermit API (see server.js header for the schema)
-    // so the game's defensive offline probing does not log 404 console noise.
-    if (url.pathname.startsWith('/api/v1/')) {
-      const body = url.pathname === '/api/v1/time' ? { now: Date.now() }
-        : url.pathname === '/api/v1/scores' ? { accepted: false, reason: 'e2e-offline-stub' }
-        : url.pathname.startsWith('/api/v1/boards') ? { board: null, entries: [] }
-        : { ok: true };
-      res.writeHead(200, { 'content-type': 'application/json' });
-      res.end(JSON.stringify(body));
-      return;
-    }
     let p = decodeURIComponent(url.pathname);
     if (p === '/') p = '/index.html';
     const file = path.join(ROOT, p);
@@ -79,6 +68,11 @@ async function runPass(browser, vpName, contextOptions) {
   const context = await browser.newContext(contextOptions);
   const page = await context.newPage();
   page.on('pageerror', (e) => errors.push(`[${vpName}] pageerror: ${e.message}`));
+  page.on('request', (r) => {
+    const u = new URL(r.url());
+    if (/^(127\.0\.0\.1|localhost)$/.test(u.hostname) && /^\/(api|ws)(\/|$)/.test(u.pathname)) errors.push(`[${vpName}] own-server request: ${r.method()} ${u.pathname}`);
+  });
+  page.on('websocket', (ws) => errors.push(`[${vpName}] websocket opened: ${ws.url()}`));
   page.on('console', (m) => {
     if (m.type() === 'error' || m.type() === 'warning') errors.push(`[${vpName}] console ${m.type()}: ${m.text()}`);
   });

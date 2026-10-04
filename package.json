@@ -4,7 +4,7 @@
   "description": "Open-information card puzzle on a brass-and-slate strategy desk.",
   "private": true,
   "scripts": {
-    "test": "node --test tests/rules.test.js tests/session.test.js tests/gfx.test.js",
+    "test": "node --test tests/rules.test.js tests/session.test.js tests/gfx.test.js tests/platform.test.js",
     "test:e2e": "node tests/e2e.mjs",
     "validate": "node tools/validate.js",
     "validate:rescue": "node tools/validate.js --rescue",

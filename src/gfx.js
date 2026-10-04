@@ -102,6 +102,7 @@
 
   var STRINGS = {
     'en-US': {
+      sh_signIn: 'Sign in with StarHermit', sh_signInHint: 'Sync your progress and settings.', sh_invite: 'Invite a friend', sh_inviteHint: 'Copy your invite link.', sh_copied: 'Invite link copied to the clipboard.', sh_copyFailed: 'Could not copy the invite link.', sh_signedOut: 'Signed out — playing locally.',
       quality: 'Quality', auto: 'Auto (detected: {0})', low: 'Low', balanced: 'Balanced', high: 'High', ultra: 'Ultra',
       renderScale: 'Render scale', fromPreset: 'From preset ({0})',
       adaptive: 'Adaptive resolution', adaptiveDesc: 'Lowers the resolution while frames are slow, restores it when they recover.',
@@ -116,9 +117,11 @@
       s_grade: 'color grade', s_noAA: 'no anti-aliasing', unknownGpu: 'unknown GPU'
     },
     'en-GB': {
+      sh_signIn: 'Sign in with StarHermit', sh_signInHint: 'Sync your progress and settings.', sh_invite: 'Invite a friend', sh_inviteHint: 'Copy your invite link.', sh_copied: 'Invite link copied to the clipboard.', sh_copyFailed: 'Couldn’t copy the invite link.', sh_signedOut: 'Signed out — playing locally.',
       cat_grade: 'Colour grade', s_grade: 'colour grade', showFpsDesc: 'Small read-out in the corner of the table.'
     },
     'es-419': {
+      sh_signIn: 'Iniciar sesión con StarHermit', sh_signInHint: 'Sincroniza tu progreso y tus ajustes.', sh_invite: 'Invitar a un amigo', sh_inviteHint: 'Copia tu enlace de invitación.', sh_copied: 'Enlace de invitación copiado al portapapeles.', sh_copyFailed: 'No se pudo copiar el enlace de invitación.', sh_signedOut: 'Sesión cerrada: juegas en modo local.',
       quality: 'Calidad', auto: 'Automática (detectada: {0})', low: 'Baja', balanced: 'Equilibrada', high: 'Alta', ultra: 'Ultra',
       renderScale: 'Escala de renderizado', fromPreset: 'Según el ajuste ({0})',
       adaptive: 'Resolución adaptable', adaptiveDesc: 'Baja la resolución cuando los fotogramas van lentos y la recupera después.',
@@ -132,9 +135,11 @@
       s_grade: 'corrección de color', s_noAA: 'sin suavizado', unknownGpu: 'GPU desconocida'
     },
     'es-ES': {
+      sh_signIn: 'Iniciar sesión con StarHermit', sh_signInHint: 'Sincroniza tu progreso y tus ajustes.', sh_invite: 'Invitar a un amigo', sh_inviteHint: 'Copia tu enlace de invitación.', sh_copied: 'Enlace de invitación copiado al portapapeles.', sh_copyFailed: 'No se ha podido copiar el enlace de invitación.', sh_signedOut: 'Sesión cerrada: juegas en local.',
       renderScale: 'Escala de renderizado', showFps: 'Mostrar imágenes por segundo', t_off: 'Desactivado', t_on: 'Activado'
     },
     'de-DE': {
+      sh_signIn: 'Mit StarHermit anmelden', sh_signInHint: 'Fortschritt und Einstellungen synchronisieren.', sh_invite: 'Freund einladen', sh_inviteHint: 'Einladungslink kopieren.', sh_copied: 'Einladungslink in die Zwischenablage kopiert.', sh_copyFailed: 'Einladungslink konnte nicht kopiert werden.', sh_signedOut: 'Abgemeldet – du spielst lokal weiter.',
       quality: 'Qualität', auto: 'Automatisch (erkannt: {0})', low: 'Niedrig', balanced: 'Ausgewogen', high: 'Hoch', ultra: 'Ultra',
       renderScale: 'Renderskalierung', fromPreset: 'Aus Voreinstellung ({0})',
       adaptive: 'Adaptive Auflösung', adaptiveDesc: 'Senkt die Auflösung bei langsamen Bildern und stellt sie danach wieder her.',
@@ -148,6 +153,7 @@
       s_grade: 'Farbkorrektur', s_noAA: 'keine Kantenglättung', unknownGpu: 'unbekannte GPU'
     },
     'fr-FR': {
+      sh_signIn: 'Se connecter avec StarHermit', sh_signInHint: 'Synchronisez progression et réglages.', sh_invite: 'Inviter un ami', sh_inviteHint: 'Copier votre lien d’invitation.', sh_copied: 'Lien d’invitation copié dans le presse-papiers.', sh_copyFailed: 'Impossible de copier le lien d’invitation.', sh_signedOut: 'Déconnecté — vous jouez en local.',
       quality: 'Qualité', auto: 'Auto (détectée : {0})', low: 'Basse', balanced: 'Équilibrée', high: 'Haute', ultra: 'Ultra',
       renderScale: 'Échelle de rendu', fromPreset: 'Selon le préréglage ({0})',
       adaptive: 'Résolution adaptative', adaptiveDesc: 'Baisse la résolution quand les images ralentissent, puis la rétablit.',
@@ -161,9 +167,11 @@
       s_grade: 'étalonnage', s_noAA: 'sans anticrénelage', unknownGpu: 'GPU inconnu'
     },
     'fr-CA': {
+      sh_signIn: 'Se connecter avec StarHermit', sh_signInHint: 'Synchronisez votre progression et vos paramètres.', sh_invite: 'Inviter un ami', sh_inviteHint: 'Copier votre lien d’invitation.', sh_copied: 'Lien d’invitation copié dans le presse-papiers.', sh_copyFailed: 'Impossible de copier le lien d’invitation.', sh_signedOut: 'Déconnecté — vous jouez en local.',
       auto: 'Auto (détectée : {0})', showFps: 'Afficher la fréquence d’images', cat_antialias: 'Antialiasing', s_noAA: 'sans antialiasing'
     },
     'pt-BR': {
+      sh_signIn: 'Entrar com StarHermit', sh_signInHint: 'Sincronize seu progresso e suas configurações.', sh_invite: 'Convidar um amigo', sh_inviteHint: 'Copie seu link de convite.', sh_copied: 'Link de convite copiado para a área de transferência.', sh_copyFailed: 'Não foi possível copiar o link de convite.', sh_signedOut: 'Sessão encerrada — jogando localmente.',
       quality: 'Qualidade', auto: 'Automática (detectada: {0})', low: 'Baixa', balanced: 'Equilibrada', high: 'Alta', ultra: 'Ultra',
       renderScale: 'Escala de renderização', fromPreset: 'Da predefinição ({0})',
       adaptive: 'Resolução adaptativa', adaptiveDesc: 'Reduz a resolução quando os quadros ficam lentos e a restaura depois.',
@@ -177,6 +185,7 @@
       s_grade: 'correção de cor', s_noAA: 'sem antisserrilhado', unknownGpu: 'GPU desconhecida'
     },
     'it-IT': {
+      sh_signIn: 'Accedi con StarHermit', sh_signInHint: 'Sincronizza progressi e impostazioni.', sh_invite: 'Invita un amico', sh_inviteHint: 'Copia il tuo link di invito.', sh_copied: 'Link di invito copiato negli appunti.', sh_copyFailed: 'Impossibile copiare il link di invito.', sh_signedOut: 'Disconnesso: giochi in locale.',
       quality: 'Qualità', auto: 'Automatica (rilevata: {0})', low: 'Bassa', balanced: 'Bilanciata', high: 'Alta', ultra: 'Ultra',
       renderScale: 'Scala di rendering', fromPreset: 'Dal preset ({0})',
       adaptive: 'Risoluzione adattiva', adaptiveDesc: 'Riduce la risoluzione quando i fotogrammi rallentano e la ripristina dopo.',

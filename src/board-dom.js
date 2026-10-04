@@ -161,13 +161,15 @@
       var zone = parts[0], index = parseInt(parts[1], 10);
       var depth = cur.dataset.depth ? parseInt(cur.dataset.depth, 10) : 0;
       var next = null;
+      // Arrow equivalent of the pressed key (player rebinds via hooks.navKey).
+      var key = hooks.navKey ? hooks.navKey(ev) : ev.key;
 
       function firstCardIn(zoneName, idx) {
         return container.querySelector('[data-loc="' + zoneName + '-' + idx + '"]');
       }
 
-      if (ev.key === 'ArrowRight' || ev.key === 'ArrowLeft') {
-        var dir = ev.key === 'ArrowRight' ? 1 : -1;
+      if (key === 'ArrowRight' || key === 'ArrowLeft') {
+        var dir = key === 'ArrowRight' ? 1 : -1;
         if (zone === 'tableau') {
           next = firstCardIn('tableau', (index + dir + R.NUM_COLUMNS) % R.NUM_COLUMNS);
         } else if (zone === 'cell') {
@@ -177,8 +179,8 @@
         }
         // Fallback into the tableau when leaving the top row.
         if (!next && zone !== 'tableau') next = firstCardIn('tableau', Math.min(index, R.NUM_COLUMNS - 1));
-      } else if (ev.key === 'ArrowDown' || ev.key === 'ArrowUp') {
-        var dd = ev.key === 'ArrowDown' ? 1 : -1;
+      } else if (key === 'ArrowDown' || key === 'ArrowUp') {
+        var dd = key === 'ArrowDown' ? 1 : -1;
         if (zone === 'tableau') {
           var colLen = state ? state.tableau[index].length : 0;
           var nd = depth + dd;

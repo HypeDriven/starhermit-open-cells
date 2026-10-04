@@ -28,7 +28,6 @@
     paused: false,
     lastTickAt: 0,
     tickTimer: 0,
-    presenceTimer: 0,
     save: null,
     settings: null,
     cmdSeq: 0,
@@ -36,6 +35,50 @@
   };
 
   function $(sel) { return document.querySelector(sel); }
+
+  // ---------------------------------------------------------------- key bindings
+  // Keyboard actions by KeyboardEvent.code, mirrored as control.* lines in
+  // starhermit.txt. The player's StarHermit rebinds replace these at boot.
+  var KEY_DEFAULTS = {
+    undo: ['KeyZ'], hint: ['KeyH'], auto: ['KeyA'], restart: ['KeyR'], cameraReset: ['Digit0', 'Numpad0'],
+    cancel: ['Escape'], pause: ['KeyP'],
+    navLeft: ['ArrowLeft'], navRight: ['ArrowRight'], navUp: ['ArrowUp'], navDown: ['ArrowDown']
+  };
+  app.keys = JSON.parse(JSON.stringify(KEY_DEFAULTS));
+
+  function keyAction(code) {
+    for (var a in app.keys) if (app.keys[a].indexOf(code) >= 0) return a;
+    return null;
+  }
+  function keyLabel(code) {
+    var named = { Escape: 'Esc', ArrowLeft: '←', ArrowRight: '→', ArrowUp: '↑', ArrowDown: '↓', Space: 'Space', Enter: 'Enter' };
+    return named[code] || String(code || '').replace(/^Key/, '').replace(/^Digit/, '').replace(/^Numpad/, 'Num ');
+  }
+  function keyText(action) { return (app.keys[action] || []).map(keyLabel).join('/'); }
+  function reflectKeys() {
+    [['#btn-undo kbd', 'undo'], ['#btn-hint kbd', 'hint'], ['#btn-auto kbd', 'auto']].forEach(function (p) {
+      var k = $(p[0]);
+      if (k) k.textContent = keyLabel((app.keys[p[1]] || [])[0]);
+    });
+  }
+  // Board-mirror arrow navigation: the bound code's arrow equivalent; a
+  // synthetic gamepad event (no code) keeps its key.
+  function navKey(ev) {
+    var a = ev.code ? keyAction(ev.code) : null;
+    var map = { navLeft: 'ArrowLeft', navRight: 'ArrowRight', navUp: 'ArrowUp', navDown: 'ArrowDown' };
+    if (a && map[a]) return map[a];
+    return ev.code ? null : ev.key;
+  }
+
+  function copyInvite() {
+    var link = P.inviteLink();
+    if (!link) return;
+    var t = global.OCGfx.strings(global.navigator && navigator.language);
+    var done = function (ok) { app.ui.toast(t(ok ? 'sh_copied' : 'sh_copyFailed')); };
+    try {
+      navigator.clipboard.writeText(link).then(function () { done(true); }, function () { done(false); });
+    } catch (e) { done(false); }
+  }
 
   function cmdId() { return 'c' + (++app.cmdSeq) + '-' + Date.now().toString(36); }
 
@@ -88,12 +131,24 @@
 
     app.board = global.OCBoardDom.createBoard($('#dom-board'), {
       onCard: onDomCard,
-      onSlot: onDomSlot
+      onSlot: onDomSlot,
+      navKey: navKey
     });
 
     wireHudButtons();
     wireGlobalInput();
     wireLifecycle();
+    reflectKeys();
+    P.loadBindings(KEY_DEFAULTS).then(function (b) { app.keys = b; reflectKeys(); });
+    // Account preferences (StarHermit settings KV) win over the local copy.
+    P.loadPlatformSettings().then(function (s) { if (s) applySettings(s); });
+    P.onAuth(function (a) {
+      if (!a.signedIn) {
+        var t = global.OCGfx.strings(global.navigator && navigator.language);
+        app.ui.toast(t('sh_signedOut'));
+      }
+      if (app.phase === 'title' && app.ui.topScreenName() === 'title') { app.ui.closeAll(); showTitle(); }
+    });
     P.syncTime();
     // Hosted: adopt the cloud mirror when it is newer than the local cache
     // (remote-preferred on conflict). localStorage stays the offline cache.
@@ -118,7 +173,6 @@
 
     app.phase = 'title';
     showTitle();
-    P.telemetry('start', {});
     global.__ocApp = app; // debug/self-test handle; not used by gameplay
   }
 
@@ -150,7 +204,8 @@
       journeyDone: Object.keys(app.save.journey).length,
       dailyStreak: app.save.dailyStreak.count,
       dailyId: daily.date,
-      msToNextDaily: C.msUntilNextUtcDay(P.now())
+      msToNextDaily: C.msUntilNextUtcDay(P.now()),
+      account: { signIn: P.canSignIn(), invite: !!P.inviteLink() }
     };
   }
 
@@ -160,7 +215,6 @@
   }
 
   function dailyClockMode() {
-    if (P.apiAvailable()) return 'hosted';
     return P.clockSynced() ? 'synced' : 'local';
   }
 
@@ -190,6 +244,9 @@
     onNext: nextAfterResults,
     onSettingsChanged: applySettings,
     graphicsInfo: graphicsInfo,
+    keyText: keyText,
+    onSignIn: function () { P.signIn(); },
+    onInvite: copyInvite,
     onWipe: wipeAll,
     onOverlayClosed: function (name) {
       if (name === 'pause' && app.phase === 'paused') resumeGame();
@@ -282,8 +339,6 @@
     syncViews(true);
     A.play('deal', config.seed);
     startTicking();
-    activity('start');
-    P.telemetry('start', { mode: config.mode });
 
     var objective = objectiveText();
     app.ui.announce(objective + ' Deal ' + config.dealId + '.', false);
@@ -357,12 +412,10 @@
     var cfg = app.config;
     if (cfg.mode === 'practice') startPractice(C.PRACTICE_DIFFICULTIES[1]);
     else startSession(cfg); // same deal, fresh attempt
-    P.telemetry('retry', { mode: cfg.mode });
   }
 
   function leaveToTitle() {
     stopTicking();
-    activity('end');
     app.session = null;
     app.phase = 'title';
     showTitle();
@@ -399,25 +452,11 @@
         updateHud();
       }
     }, 250);
-    // Throttled presence heartbeat while actively playing (local dev server
-    // only — the platform host has no client-reachable presence route).
-    app.presenceTimer = setInterval(function () {
-      if (app.phase === 'active' && !document.hidden && P.devApiAvailable()) {
-        P.apiFetch('/api/v1/presence', { method: 'POST', body: { game: 'open-cells' } }).catch(function () {});
-      }
-    }, 30000);
   }
 
   function stopTicking() {
     if (app.tickTimer) clearInterval(app.tickTimer);
-    if (app.presenceTimer) clearInterval(app.presenceTimer);
-    app.tickTimer = 0; app.presenceTimer = 0;
-  }
-
-  function activity(kind) {
-    if (P.devApiAvailable()) {
-      P.apiFetch('/api/v1/activity', { method: 'POST', body: { event: kind } }).catch(function () {});
-    }
+    app.tickTimer = 0;
   }
 
   // ---------------------------------------------------------------- session events
@@ -449,7 +488,6 @@
       app.ui.announce('Undone.', false);
     } else if (event.type === 'lesson-step') {
       A.play('lesson-step');
-      P.telemetry('tutorial-step', { index: event.index });
       if (event.done) lessonComplete();
       else showLessonStep();
       updateHud();
@@ -477,7 +515,6 @@
     var st = app.session.state;
     app.phase = 'results';
     stopTicking();
-    activity('end');
     if (app.renderer) app.renderer.settle();
 
     var score = S.score(app.session);
@@ -601,7 +638,6 @@
     // results directly without touching rules state (replay stays valid).
     app.phase = 'results';
     stopTicking();
-    activity('end');
     var st = app.session.state;
     var score = S.score(app.session);
     clearSnapshot();
@@ -923,17 +959,19 @@
       // Ignore shortcuts while typing in a form field.
       if (ev.target && /^(INPUT|SELECT|TEXTAREA)$/.test(ev.target.tagName)) return;
       if (app.ui.hasOpenScreen()) return; // overlays handle their own keys
-      var kb = app.settings.keybindings;
-      var code = ev.code;
-      if (code === kb.undo) { ev.preventDefault(); doUndo(); }
-      else if (code === kb.hint) { ev.preventDefault(); doHint(); }
-      else if (code === kb.auto) { ev.preventDefault(); doAuto(); }
-      else if (code === kb.cameraReset) { if (app.renderer) app.renderer.resetCamera(); }
-      else if (code === 'Escape') {
+      var act = keyAction(ev.code);
+      if (act === 'undo') { ev.preventDefault(); doUndo(); }
+      else if (act === 'hint') { ev.preventDefault(); doHint(); }
+      else if (act === 'auto') { ev.preventDefault(); doAuto(); }
+      else if (act === 'cameraReset') { if (app.renderer) app.renderer.resetCamera(); }
+      else if (act === 'restart') {
+        if ((app.phase === 'active' || app.phase === 'paused') && global.confirm('Restart this deal from the beginning?')) retryDeal();
+      }
+      else if (act === 'cancel') {
         if (app.selection) { select(null, true); A.play('deselect'); refreshBoard(); }
         else doPause();
       }
-      else if (code === 'KeyP') doPause();
+      else if (act === 'pause') doPause();
     });
 
     // Gamepad: focus navigation + confirm/cancel/pause (default mapping;
@@ -1006,7 +1044,6 @@
     });
     global.addEventListener('beforeunload', function () {
       saveSnapshot();
-      activity('end');
     });
   }
 

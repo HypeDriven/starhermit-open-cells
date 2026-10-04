@@ -45,7 +45,7 @@ checksummed save document.
 - `src/board-dom.js` — semantic, fully playable HTML board (accessibility
   layer and no-WebGL fallback).
 - `src/ui.js` — screens, HUD, focus management, live regions, settings.
-- `src/platform.js` — persistence, leaderboards, time sync, telemetry consent.
+- `src/platform.js` — persistence, leaderboards, platform time sync (signed in only).
 - `src/audio.js` — procedural WebAudio on music/effects/ambience/voice buses.
 - `src/main.js` — app state machine and orchestration.
 - `server.js` — authoritative hosted script (also a standalone static server).

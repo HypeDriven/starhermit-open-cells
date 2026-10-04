@@ -146,6 +146,26 @@
         row2.appendChild(button('Help', 'btn btn-quiet', function () { showHelp(); }));
         body.appendChild(row2);
 
+        // StarHermit account: sign-in only where the platform offers it,
+        // invite only when signed in.
+        var acct = data.account || {};
+        if (acct.signIn || acct.invite) {
+          var tr = global.OCGfx.strings(global.navigator && navigator.language);
+          var row3 = el('div', 'title-row title-row-quiet title-account');
+          row3.lang = global.OCGfx.pickLocale(global.navigator && navigator.language);
+          if (acct.signIn) {
+            var si = button(tr('sh_signIn'), 'btn', function () { actions.onSignIn(); });
+            si.id = 'btn-sh-sign-in';
+            row3.appendChild(si);
+          }
+          if (acct.invite) {
+            var inv = button(tr('sh_invite'), 'btn', function () { actions.onInvite(); });
+            inv.id = 'btn-sh-invite';
+            row3.appendChild(inv);
+          }
+          body.appendChild(row3);
+        }
+
         if (data.journeyDone != null) {
           body.appendChild(el('p', 'title-progress',
             'Journey: ' + data.journeyDone + ' of ' + C.JOURNEY.length + ' stages · Daily streak: ' + data.dailyStreak));
@@ -289,11 +309,9 @@
     function showDailySetup(daily, clockMode) {
       openScreen('daily-setup', function (body) {
         body.appendChild(el('p', null, 'Deal ' + daily.date + ' · seed ' + daily.seed + ' · standard rules · par ' + daily.par.moves + ' moves.'));
-        body.appendChild(el('p', null, clockMode === 'hosted'
-          ? 'Hosted on StarHermit — the daily boundary uses this device’s clock.'
-          : clockMode === 'synced'
-            ? 'Clock synchronized with the host.'
-            : 'Offline: using this device’s clock for the daily boundary.'));
+        body.appendChild(el('p', null, clockMode === 'synced'
+          ? 'Clock synchronized with StarHermit.'
+          : 'Using this device’s clock for the daily boundary.'));
         body.appendChild(el('p', null, 'One result per day counts for your streak. Ranked.'));
         body.appendChild(button('Play today’s deal', 'btn btn-primary', function () {
           closeAll(); actions.onStartDaily(daily);
@@ -429,13 +447,15 @@
         toggle(gx, 'htmlMode', 'HTML board', 'Use the semantic HTML board instead of the 3D scene.');
 
         var gc = group('Controls');
-        var kb = el('p', null, 'Keyboard: arrows navigate, Enter/Space select or place, Escape cancel/pause, Z undo, H hint, A collect, 0 camera reset.');
+        var k = actions.keyText;
+        var kb = el('p', null, 'Keyboard: ' + [k('navLeft'), k('navRight'), k('navUp'), k('navDown')].join(' ') + ' navigate, Enter/Space select or place, ' +
+          k('cancel') + ' cancel/pause, ' + k('pause') + ' pause, ' + k('undo') + ' undo, ' + k('hint') + ' hint, ' + k('auto') + ' collect, ' +
+          k('restart') + ' restart, ' + k('cameraReset') + ' camera reset.');
         gc.appendChild(kb);
         var gp = el('p', null, 'Gamepad: stick or D-pad navigates, A confirms, B cancels, Start pauses.');
         gc.appendChild(gp);
 
         var gd = group('Data');
-        toggle(gd, 'telemetryConsent', 'Anonymous usage events', 'Funnel events only: start, tutorial step, round end, retry, settings change, error category.');
         var wipe = button('Erase local progress', 'btn btn-quiet', function () {
           if (global.confirm('Erase all local progress, scores, and settings?')) actions.onWipe();
         });
@@ -609,7 +629,10 @@
           grid.appendChild(card);
         });
         body.appendChild(grid);
-        var kb = el('p', null, 'Controls — arrows navigate, Enter/Space select or place, Escape cancels, Z undo, H hint, A collect, R restart (with confirmation), 0 camera reset.');
+        var k = actions.keyText;
+        var kb = el('p', null, 'Controls — ' + [k('navLeft'), k('navRight'), k('navUp'), k('navDown')].join(' ') + ' navigate, Enter/Space select or place, ' +
+          k('cancel') + ' cancels, ' + k('undo') + ' undo, ' + k('hint') + ' hint, ' + k('auto') + ' collect, ' + k('restart') +
+          ' restart (with confirmation), ' + k('cameraReset') + ' camera reset.');
         body.appendChild(kb);
       }, { title: 'How to play', wide: true });
     }
@@ -759,7 +782,6 @@
         row.appendChild(button('Leave', 'btn btn-quiet', function () { closeAll(); actions.onLeave(); }));
         body.appendChild(row);
 
-        P.telemetry('round-end', { mode: data.mode, won: data.status === 'won' });
         announce(headline + ' Total score ' + data.score.total + '.', true);
       }, { title: 'Results', noEscape: false });
     }
@@ -799,10 +821,32 @@
     }
 
     // Player identity + cloud sync state, shown in the topbar when hosted.
+    // Short-lived visible notice (also read by screen readers).
+    var toastTimer = 0;
+    function toast(text) {
+      var t = document.getElementById('oc-toast');
+      if (!t) {
+        t = el('div', 'oc-toast');
+        t.id = 'oc-toast';
+        t.setAttribute('role', 'status');
+        document.body.appendChild(t);
+      }
+      t.textContent = text;
+      t.hidden = false;
+      clearTimeout(toastTimer);
+      toastTimer = setTimeout(function () { t.hidden = true; }, 3200);
+    }
+
     function updatePlayer(st) {
       if (!hudEls) return;
       if (hudEls.player) {
-        hudEls.player.textContent = st.name || '';
+        hudEls.player.textContent = '';
+        if (st.avatar) {
+          var img = el('img', 'player-avatar');
+          img.src = st.avatar; img.alt = ''; img.width = 18; img.height = 18;
+          hudEls.player.appendChild(img);
+        }
+        hudEls.player.appendChild(document.createTextNode(st.name || ''));
         hudEls.player.hidden = !st.name;
       }
       if (hudEls.sync) {
@@ -854,6 +898,7 @@
       bindHud: bindHud,
       updateHud: updateHud,
       updatePlayer: updatePlayer,
+      toast: toast,
       applySettings: applySettings
     };
   }

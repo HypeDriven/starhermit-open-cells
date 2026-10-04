@@ -19,7 +19,7 @@ to put a card that has nowhere to go — Open Cells is the puzzle of spending th
 | Platforms | Desktop and mobile browsers, portrait and landscape |
 | Rendering | Three.js desk scene (`vendor/three.min.js`) over a fully playable semantic HTML board; the HTML board is the fallback and the accessibility surface |
 | Persistence | `localStorage`, versioned + checksummed |
-| Networking | Optional `/api/v1/*` on the StarHermit host; fully playable offline |
+| Networking | StarHermit platform via the SDK when signed in; standalone makes no network request; fully playable offline |
 
 ### File map
 
@@ -35,7 +35,8 @@ to put a card that has nowhere to go — Open Cells is the puzzle of spending th
 | `vendor/three/` | `three-global.js` (ES-module view of the vendored r152 `window.THREE`) and same-revision addons (`addons/postprocessing`, `addons/shaders`, `addons/environments/RoomEnvironment.js`), loaded on demand through the import map in `index.html`. |
 | `src/board-dom.js` | The HTML board — real `<button>` cards and slots, arrow-key navigation, ARIA labels. |
 | `src/ui.js` | 14 overlay screens, focus trap and restore, HUD, live-region announcements, settings form. |
-| `src/platform.js` | Launch-token handling, settings, save document, local boards, read-only hosted leaderboard, profile nickname, cloud-save mirror, dev-server time sync/telemetry. |
+| `src/platform.js` | Settings (+ StarHermit settings KV mirror), save document, local boards, read-only hosted leaderboard, profile nickname/avatar, `game:<slug>` cloud-save mirror, keyboard bindings, sign-in/invite helpers, platform time sync when signed in — all platform calls through the SDK; no own-server calls. |
+| `src/starhermit-sdk.js` | Unmodified copy of the canonical StarHermit client (`window.StarHermit`); owns the launch token and its renewal. |
 | `src/audio.js` | Four buses, authored one-shots from `sfx/`, procedural fallbacks, adaptive pad. |
 | `src/main.js` | App state machine, input routing, tick loop, results and progression bookkeeping. |
 | `server.js` | Authoritative host script and standalone static server. |
@@ -219,8 +220,8 @@ and every shipped seed is solvable; `--rescue` searches replacement seeds for an
 | Move | Click a highlighted target, or drag on the canvas | Tap target, or drag | `attemptMove`; on success `drop`/`cell`/`foundation` cue + a 15 ms haptic pulse. |
 | Smart move | Double-click | Double-tap (< 400 ms, same card) | Foundation if legal, else the first free cell. |
 | Return to origin | Drop on the source pile | same | Treated as a cancel: no turn, no invalid, no penalty. |
-| Board navigation | Arrow keys between slots and columns | — | `board-dom.js` grid navigation; every card and slot is a focusable button. |
-| Undo / Hint / Collect / Pause / Restart | `Z` / `H` / `A` / `Esc` or `P` / `R` | Bottom tray mirrors the rail buttons | Rebindable via `settings.keybindings` (stored as `KeyboardEvent.code`). |
+| Board navigation | Arrow keys between slots and columns | — | `board-dom.js` grid navigation (bound codes via `navKey`); every card and slot is a focusable button. |
+| Undo / Hint / Collect / Pause / Restart | `Z` / `H` / `A` / `Esc` or `P` / `R` (with confirmation) | Bottom tray mirrors the rail buttons | Routed by `KeyboardEvent.code`; rebindable per player on StarHermit (`control.*` actions, §12). |
 | Camera reset | `0` | — | 3D only. |
 | Gamepad | A confirm, B cancel, Start pause, D-pad navigation (180 ms repeat) | — | Polled at 60 ms; D-pad synthesises arrow keydowns on the focused element. |
 
@@ -410,34 +411,37 @@ defaulting to `navigator.languages` with a settings override, and the nine catal
 
 ## 12. StarHermit integration
 
-`starhermit.txt` declares `name`, `launch=index.html`, `owner`, `server=server.js`, `version` and
-`cover=coverart.png`, per https://wiki.starhermit.com/ conventions.
+`starhermit.txt` declares `name`, `launch=index.html`, `owner`, `server=server.js`, `version`,
+`cover=coverart.png` and one `control.<action>=<codes> | <label>` line per keyboard action, per
+https://wiki.starhermit.com/ conventions.
 
-**Used** (same-origin `/api/v1/*`; hosted mode activates iff a launch token was
-read — `#game_token=<jwt>` in the URL fragment, stripped after reading; the JWT
-payload supplies `sub` and `game_scope`. Query-param token fallbacks work only on
-the local dev server. `localStorage` stays the offline cache):
+**Used.** All platform traffic goes through the shared SDK `src/starhermit-sdk.js` (an unmodified
+copy of the canonical client, loaded before `src/platform.js`). Hosted mode is "the SDK holds a
+launch token": `#game_token=<jwt>` (library launch) or `#access_token=<jwt>` (direct sign-in
+return), read once and stripped; the slug is the `game_scope` claim. Without a token nothing is
+requested. `localStorage` stays the offline cache.
 
-| Feature | Endpoint | Behaviour |
-|---|---|---|
-| Token refresh | `POST /api/v1/games/{slug}/launch-token` | Re-mints the scoped token every 45 min (tokens live 60 min); failures retry after ~60 s. Every REST call carries `Authorization: Bearer`. |
-| Identity | `GET /api/v1/users/{sub}/profile` | Nickname shown in the topbar player slot; `"Player " + id.slice(0,8)` fallback. Never `/api/v1/me`, never usernames. |
-| Cloud save | `GET`/`PUT /api/v1/me/cloud-saves/{slug}` | Save doc + local boards as one stored zip (base64), ≤10 MB slot. Saves debounce 2 s and flush on pagehide; loads prefer the remote copy when newer; topbar shows sync state. |
-| Leaderboard (read) | `GET /api/v1/games/{slug}`, `GET /api/v1/leaderboards/{id}/entries` | Read-only; entries resolve user ids to nicknames via the profile route. Personal bests stay local + cloud-mirrored. Clients never submit scores. |
-| Daily clock | — | No client-reachable host time endpoint: the daily boundary uses the device clock when hosted; the local dev server still offers `GET /api/v1/time` sync. |
+| Feature | Behaviour |
+|---|---|
+| Token renewal | The SDK re-mints the launch token before expiry. If renewal is refused the player slot clears, a "signed out — playing locally" toast shows, the title re-offers sign-in and play continues locally. |
+| Sign-in | On `*.starhermit.com` without a token the title shows **Sign in with StarHermit** (`StarHermit.signIn()`); hidden when signed in and when running locally. |
+| Identity | Profile nickname (fallback `"Player " + id prefix`) and avatar in the topbar player slot. Never `/api/v1/me`. |
+| Cloud save | Save doc + local boards in the `game:<slug>` slot. Saves debounce 2 s and flush on pagehide/visibilitychange; loads prefer the remote copy when newer; topbar shows sync state; Erase resets the slot. |
+| Settings KV | Theme, graphics, reduced motion, contrast, text size, handedness, hold-to-drag, haptics, palette, volumes and mute are patched to the per-player settings store on change and applied at boot (the account value wins). |
+| Invite | Signed in, the title shows **Invite a friend**: copies `StarHermit.inviteLink()` to the clipboard and confirms with a toast. |
+| Controls | Keyboard shortcuts and board-mirror arrow navigation route by `KeyboardEvent.code` through `StarHermit.loadBindings()` (platform rebinds over the `control.*` defaults); Settings → Controls, Help and the rail's key hints show the effective keys. |
+| Leaderboard (read) | The game's first platform board, nickname-resolved, on the Scores screen. Personal bests stay local + cloud-mirrored. Clients never submit scores. |
+| Daily clock | Signed in, `GET /api/v1/time` (via the SDK) gives a round-trip-adjusted offset; standalone the daily boundary uses the device clock. |
 
-**Local dev server only** (`server.js` on localhost; never called on the StarHermit
-host): `GET /api/v1/time`, `POST /api/v1/scores` (replay-validated), `GET
-/api/v1/boards`, `POST /api/v1/presence`, `POST /api/v1/activity`, `POST
-/api/v1/telemetry` (consent-gated). `server.js` keeps its hardening: per-identity
-rate limiting with bucket pruning, strict type validation on
-`seed`/`moves`/`durationMs`/`contentVersion`/`invalid` (422 with a stable error
-id), `400` on a malformed percent-escape, a `__dirname + path.sep` static
-boundary, and a body-size cap. Data lives in `.server-data/` (gitignored) or
-`OPEN_CELLS_DATA`.
+Sign-in/invite labels and toasts are localized in all nine locales (`src/gfx.js` `sh_*` strings).
 
-**Not used:** matchmaking, realtime sockets, chat, parties, purchases. Open Cells
-is single-player; the only shared state is the seeded daily deal and the
+**Standalone (no token):** the client makes no request beyond its static files — no time sync,
+score submission, board reads, presence, activity or telemetry (the telemetry consent toggle was
+removed with it). Scores stay on the local boards. `server.js` is only a local static host; its
+legacy `/api/v1` routes are not called by the client.
+
+**Not used:** sessions, matchmaking, friends picker, chat, replays, realtime and
+voice, purchases. Open Cells is single-player; the only shared state is the seeded daily deal and the
 leaderboard. Achievements stay local (part of the cloud-saved doc); `server.js`
 is a Node static/API server, not a Jint game script, so there is no
 server-authoritative unlock path.
@@ -467,8 +471,8 @@ the particle pool is fixed-size and never a raycast target; WebGL context loss i
 scene rebuilt. Devices without WebGL (or with the HTML-board setting on) get the DOM board with an
 explanatory note — no error path.
 
-**How the e2e drives the real UI.** `tests/e2e.mjs` serves the folder from an ephemeral port with a
-stubbed `/api/v1/*`, launches Chrome through `playwright-core`, and at 1280×800 and 390×844 clicks
+**How the e2e drives the real UI.** `tests/e2e.mjs` serves the folder from an ephemeral port (no
+`/api` routes; any same-origin `/api` or `/ws` request fails the pass), launches Chrome through `playwright-core`, and at 1280×800 and 390×844 clicks
 the visible buttons: title → Settings → Graphics (Low, High, a bloom override, frame-rate readout,
 preset-clears-overrides, reload persistence, back to Auto) → HTML board → Play → two legal moves found by asking the live
 engine for a legal action and then *clicking the corresponding DOM buttons* (falling back to focus +

@@ -602,3 +602,10 @@ html.reduced-motion #dom-board .card.selected { transform: none; }
 .screen { position: relative; }
 .screen-close { position: absolute; top: 8px; right: 8px; min-width: 44px; min-height: 44px; font-size: 1.1rem; }
 .screen-title { padding-right: 52px; }
+
+/* StarHermit account row, avatar and toast */
+.title-account { margin-top: 0.4rem; }
+.title-account .btn { min-height: 44px; }
+.player-avatar { width: 18px; height: 18px; border-radius: 50%; vertical-align: middle; margin-right: 0.35rem; object-fit: cover; }
+.oc-toast { position: fixed; left: 50%; bottom: calc(1rem + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%); z-index: 200; max-width: min(90vw, 26rem); padding: 0.6rem 1rem; border-radius: 0.6rem; background: #1d2630; color: #f1ead8; border: 1px solid #c9a24a; text-align: center; }
+.oc-toast[hidden] { display: none; }
