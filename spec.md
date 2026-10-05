@@ -259,6 +259,10 @@ resumes deliberately.
 - **<1024 px portrait:** `#rail-left` becomes a static wrapping strip *above* the playfield (never an
   overlay on the cards), and the tray holds Undo / Hint / Collect / Pause in the thumb zone.
 - Safe areas: `env(safe-area-inset-*)` is applied to `#app`, the topbar, the tray and every overlay.
+- **Large screens (above 1600×1000):** `ui-scale.js` sets `--ui-scale` (`min(w/1600, h/1000)`, capped
+  at 2.5); the topbar, both rails, the tray, the HTML board, toasts and every screen overlay are
+  CSS-`zoom`ed by it and the rail columns widen by the same factor, while the 3D canvas stays
+  unzoomed and fills the remaining playfield.
 
 **Never cut off:** the four cells and four foundations of the top row (they share the row width
 `flex: 1 1 0; min-width: 0`, foundations in `row-reverse` so their left-to-right order matches the

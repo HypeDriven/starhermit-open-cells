@@ -320,7 +320,7 @@ html.reduced-motion .btn:active { transform: none; }
 .title-hero { text-align: center; margin: 0.5rem 0 0.3rem; }
 .title-wordmark {
   font-family: var(--font);
-  font-size: clamp(2.2rem, 6vw, 3.4rem);
+  font-size: clamp(2.2rem, calc(6vw / var(--ui-scale, 1)), 3.4rem);
   font-weight: 700;
   color: var(--accent);
   letter-spacing: 0.06em;
@@ -328,6 +328,7 @@ html.reduced-motion .btn:active { transform: none; }
 }
 .title-tag { color: var(--ink-dim); margin: 0.3rem auto 0; max-width: 46ch; }
 .btn-play { font-size: 1.25rem; padding: 0.8rem 2.4rem; }
+.screen-body .btn-play { align-self: center; }
 .title-row { display: flex; gap: 0.6rem; flex-wrap: wrap; justify-content: center; }
 .title-row-quiet .btn { min-height: 40px; }
 .title-progress, .title-clock { color: var(--ink-dim); font-size: 0.85rem; text-align: center; margin: 0.2rem 0 0; }
@@ -518,7 +519,7 @@ body.html-mode #dom-board { display: flex; }
   background: var(--card-face);
   border-color: #999;
   font-weight: 700;
-  font-size: clamp(0.62rem, 1.6vw, 0.95rem);
+  font-size: clamp(0.62rem, calc(1.6vw / var(--ui-scale, 1)), 0.95rem);
 }
 #dom-board .card.red { color: var(--card-red); }
 #dom-board .card.black { color: var(--card-black); }
@@ -607,5 +608,16 @@ html.reduced-motion #dom-board .card.selected { transform: none; }
 .title-account { margin-top: 0.4rem; }
 .title-account .btn { min-height: 44px; }
 .player-avatar { width: 18px; height: 18px; border-radius: 50%; vertical-align: middle; margin-right: 0.35rem; object-fit: cover; }
-.oc-toast { position: fixed; left: 50%; bottom: calc(1rem + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%); z-index: 200; max-width: min(90vw, 26rem); padding: 0.6rem 1rem; border-radius: 0.6rem; background: #1d2630; color: #f1ead8; border: 1px solid #c9a24a; text-align: center; }
+.oc-toast { position: fixed; left: 50%; bottom: calc(1rem + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%); z-index: 200; max-width: min(calc(90vw / var(--ui-scale, 1)), 26rem); padding: 0.6rem 1rem; border-radius: 0.6rem; background: #1d2630; color: #f1ead8; border: 1px solid #c9a24a; text-align: center; }
 .oc-toast[hidden] { display: none; }
+
+/* Large screens: ui-scale.js sets --ui-scale (1 up to 1600x1000). Each chrome
+   layer zooms by it; the 3D canvas stays unzoomed and fills the remaining
+   space. vw lengths inside zoomed layers are divided by the scale above. */
+#topbar, #rail-left, #rail-right, #tray, #dom-board, #toast, #fps-meter,
+.screen-overlay, .oc-toast { zoom: var(--ui-scale, 1); }
+html.ui-scaled #layout {
+  grid-template-columns: calc(240px * var(--ui-scale)) 1fr calc(220px * var(--ui-scale));
+  gap: calc(0.75rem * var(--ui-scale));
+  padding: calc(0.75rem * var(--ui-scale));
+}
