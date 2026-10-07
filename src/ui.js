@@ -776,6 +776,12 @@
           body.appendChild(div);
         }
 
+        var lb = el('p', 'results-meta');
+        lb.id = 'results-lb';
+        lb.setAttribute('role', 'status');
+        lb.hidden = true;
+        body.appendChild(lb);
+
         var row = el('div', 'title-row');
         if (data.onNextLabel) row.appendChild(button(data.onNextLabel, 'btn btn-primary', function () { closeAll(); actions.onNext(); }));
         row.appendChild(button('Retry', 'btn', function () { closeAll(); actions.onRetry(); }));

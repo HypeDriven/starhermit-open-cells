@@ -39,7 +39,8 @@ to put a card that has nowhere to go — Open Cells is the puzzle of spending th
 | `src/starhermit-sdk.js` | Unmodified copy of the canonical StarHermit client (`window.StarHermit`); owns the launch token and its renewal. |
 | `src/audio.js` | Four buses, authored one-shots from `sfx/`, procedural fallbacks, adaptive pad. |
 | `src/main.js` | App state machine, input routing, tick loop, results and progression bookkeeping. |
-| `server.js` | Authoritative host script and standalone static server. |
+| `score-script.js` | StarHermit platform script (`server=score-script.js`): range-checks a finished ranked deal's total and posts it to the `high-score` leaderboard (canonical copy in the games repo's `tools/score-script.js`). |
+| `server.js` | Local dev host: static server plus legacy `/api/v1` routes the client does not call. |
 | `tools/validate.js` | Offline solver proving lessons and every shipped deal seed. |
 | `tests/` | `rules.test.js`, `session.test.js`, `gfx.test.js` (37 `node --test` cases), `e2e.mjs` (Playwright), legacy `*.html` probes. |
 | `tools/shots.mjs` | Visual check: title and in-game screenshots at a forced graphics preset, desktop and mobile, into `test-results/`. |
@@ -415,7 +416,7 @@ defaulting to `navigator.languages` with a settings override, and the nine catal
 
 ## 12. StarHermit integration
 
-`starhermit.txt` declares `name`, `launch=index.html`, `owner`, `server=server.js`, `version`,
+`starhermit.txt` declares `name`, `launch=index.html`, `owner`, `server=score-script.js`, `version`,
 `cover=coverart.png` and one `control.<action>=<codes> | <label>` line per keyboard action, per
 https://wiki.starhermit.com/ conventions.
 
@@ -434,21 +435,21 @@ requested. `localStorage` stays the offline cache.
 | Settings KV | Theme, graphics, reduced motion, contrast, text size, handedness, hold-to-drag, haptics, palette, volumes and mute are patched to the per-player settings store on change and applied at boot (the account value wins). |
 | Invite | Signed in, the title shows **Invite a friend**: copies `StarHermit.inviteLink()` to the clipboard and confirms with a toast. |
 | Controls | Keyboard shortcuts and board-mirror arrow navigation route by `KeyboardEvent.code` through `StarHermit.loadBindings()` (platform rebinds over the `control.*` defaults); Settings → Controls, Help and the rail's key hints show the effective keys. |
-| Leaderboard (read) | The game's first platform board, nickname-resolved, on the Scores screen. Personal bests stay local + cloud-mirrored. Clients never submit scores. |
+| High-score board | Every finished ranked deal (Journey, Daily, Challenge, Score Chase — not Learn or Practice) posts its total through `StarHermit.submitScores` (a practice session whose `score-script.js` posts it to the `high-score` board: integer, higher is better, 0–50,000); the results screen then shows "Leaderboard rank: #N" (or posted / not posted). |
+| Leaderboard (read) | The game's default platform board, nickname-resolved, on the Scores screen. Personal bests stay local + cloud-mirrored. |
 | Daily clock | Signed in, `GET /api/v1/time` (via the SDK) gives a round-trip-adjusted offset; standalone the daily boundary uses the device clock. |
 
-Sign-in/invite labels and toasts are localized in all nine locales (`src/gfx.js` `sh_*` strings).
+Sign-in/invite labels, toasts and the results leaderboard line are localized in all nine locales (`src/gfx.js` `sh_*` strings).
 
 **Standalone (no token):** the client makes no request beyond its static files — no time sync,
-score submission, board reads, presence, activity or telemetry (the telemetry consent toggle was
+score posting, board reads, presence, activity or telemetry (the telemetry consent toggle was
 removed with it). Scores stay on the local boards. `server.js` is only a local static host; its
 legacy `/api/v1` routes are not called by the client.
 
 **Not used:** sessions, matchmaking, friends picker, chat, replays, realtime and
 voice, purchases. Open Cells is single-player; the only shared state is the seeded daily deal and the
-leaderboard. Achievements stay local (part of the cloud-saved doc); `server.js`
-is a Node static/API server, not a Jint game script, so there is no
-server-authoritative unlock path.
+leaderboard. Achievements stay local (part of the cloud-saved doc); `score-script.js`
+only posts scores, so there is no server-authoritative unlock path.
 
 ---
 

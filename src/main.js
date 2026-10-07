@@ -402,6 +402,21 @@
     P.persistSave(app.save);
   }
 
+  // Signed in, every finished ranked deal (Journey, Daily, Challenge, Score
+  // Chase) posts its total to the platform high-score board; the results
+  // screen shows the rank line.
+  function postHighScore(ranked, total) {
+    var line = document.getElementById('results-lb');
+    if (!line) return;
+    if (!ranked || !P.getIdentity().hosted) { line.hidden = true; return; }
+    var t = global.OCGfx.strings(global.navigator && navigator.language);
+    line.hidden = false;
+    line.textContent = t('sh_lbPosting');
+    P.postHighScore(Math.max(0, Math.round(total))).then(function (r) {
+      line.textContent = !r.posted ? t('sh_lbNotPosted') : r.rank ? t('sh_lbRank', r.rank) : t('sh_lbPosted');
+    });
+  }
+
   function clearSnapshot() {
     app.save.lastSnapshot = null;
     P.persistSave(app.save);
@@ -599,6 +614,7 @@
       onNextLabel: app.config.mode === 'journey' && won ? 'Next stage'
         : app.config.mode === 'learn' ? 'Next lesson' : null
     });
+    postHighScore(app.config.ranked, score.total);
   }
 
   function unlock(key) {

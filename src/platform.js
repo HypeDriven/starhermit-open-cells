@@ -203,8 +203,8 @@
   // ---------------------------------------------------------------- boards
   // Local leaderboards (personal bests, cloud-mirrored with the save doc).
   // Every entry carries ruleset, content version, seed, assists, duration.
-  // On-platform there is no client score submission: platform leaderboards
-  // are script-owned; the hosted game reads them read-only.
+  // On-platform, finished ranked deals also post to the `high-score` board
+  // (postHighScore below); other platform boards are read-only.
 
   function loadBoards() { return readJson(BOARD_KEY, { boards: {} }); }
 
@@ -284,6 +284,20 @@
         });
       })).then(function (entries) { return { me: me, entries: entries }; });
     }).catch(function () { return null; });
+  }
+
+  // Platform high-score board (score-script.js): post a finished ranked deal's
+  // total via StarHermit.submitScores; resolves {posted, rank} — the player's
+  // rank on the `high-score` board, or null. Signed out: no request.
+  function postHighScore(total) {
+    if (!isHosted()) return Promise.resolve({ posted: false, rank: null });
+    return SH.submitScores({ 'high-score': total }).then(function (keys) {
+      if (!keys || keys.indexOf('high-score') < 0) return { posted: false, rank: null };
+      return SH.leaderboard('high-score', { pageSize: 100 }).then(function (r) {
+        var me = ((r && r.items) || []).filter(function (i) { return i.userId === SH.userId; })[0];
+        return { posted: true, rank: me ? me.rank : null };
+      }, function () { return { posted: true, rank: null }; });
+    }).catch(function () { return { posted: false, rank: null }; });
   }
 
   // ---------------------------------------------------------------- time sync
@@ -471,6 +485,7 @@
     getBoard: getBoard,
     mergeBoards: mergeBoards,
     getHostedLeaderboard: getHostedLeaderboard,
+    postHighScore: postHighScore,
     syncTime: syncTime,
     clockSynced: clockSynced,
     now: now,
