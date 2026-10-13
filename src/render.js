@@ -1236,8 +1236,8 @@
         postKey = k;
         buildPost(w, h);
       }
-      if (composer) composer.render(dtMs / 1000);
-      else renderer.render(scene, camera);
+      if (composer) (globalThis.GameOptions ? globalThis.GameOptions.draw(composer.renderer, () => composer.render(dtMs / 1000)) : composer.render(dtMs / 1000));
+      else (globalThis.GameOptions ? globalThis.GameOptions.draw(renderer, () => renderer.render(scene, camera)) : renderer.render(scene, camera));
     }
 
     function frame(t) {

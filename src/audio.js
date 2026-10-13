@@ -32,7 +32,7 @@
       var g = ctx.createGain();
       g.gain.value = muted ? 0 : (volumes[name] != null ? volumes[name] : 0.5);
       g.connect(master);
-      buses[name] = g;
+      buses[name] = (globalThis.GameOptions ? globalThis.GameOptions.tagBus(g, name) : g);
     });
     return true;
   }
@@ -70,7 +70,7 @@
     if (!ctx || muted) return;
     var bus = buses[busName || 'effects'];
     var t = ctx.currentTime + (opts.delay || 0);
-    var osc = ctx.createOscillator();
+    var osc = (globalThis.GameOptions ? globalThis.GameOptions.trackSource(ctx.createOscillator(), null) : ctx.createOscillator());
     var gain = ctx.createGain();
     osc.type = opts.type || 'sine';
     osc.frequency.setValueAtTime(opts.freq * (opts.pitch || 1), t);
@@ -94,7 +94,7 @@
       s = (s * 1664525 + 1013904223) >>> 0;
       data[i] = ((s / 4294967296) * 2 - 1) * (1 - i / len);
     }
-    var src = ctx.createBufferSource(); src.buffer = buf;
+    var src = (globalThis.GameOptions ? globalThis.GameOptions.trackSource(ctx.createBufferSource(), null) : ctx.createBufferSource()); src.buffer = buf;
     var filter = ctx.createBiquadFilter();
     filter.type = opts.filter || 'bandpass';
     filter.frequency.value = opts.freq || 1800;
@@ -181,7 +181,7 @@
   function playSample(name) {
     var entry = loadSample(name);
     if (entry.state !== 'ready') return false;
-    var src = ctx.createBufferSource();
+    var src = (globalThis.GameOptions ? globalThis.GameOptions.trackSource(ctx.createBufferSource(), name) : ctx.createBufferSource());
     src.buffer = entry.buffer;
     src.connect(buses.effects);
     src.start();
@@ -201,7 +201,7 @@
       last = (last + 0.02 * white) / 1.02;
       data[i] = last * 2.4;
     }
-    var src = ctx.createBufferSource(); src.buffer = buf; src.loop = true;
+    var src = (globalThis.GameOptions ? globalThis.GameOptions.trackSource(ctx.createBufferSource(), null) : ctx.createBufferSource()); src.buffer = buf; src.loop = true;
     var filter = ctx.createBiquadFilter(); filter.type = 'lowpass'; filter.frequency.value = 320;
     src.connect(filter); filter.connect(buses.ambience);
     src.start();
@@ -219,7 +219,7 @@
     chords[0].concat([0]).forEach(function () {});
     var voices = [];
     for (var v = 0; v < 4; v++) {
-      var o = ctx.createOscillator(); o.type = 'sine';
+      var o = (globalThis.GameOptions ? globalThis.GameOptions.trackSource(ctx.createOscillator(), null) : ctx.createOscillator()); o.type = 'sine';
       var g = ctx.createGain(); g.gain.value = v < 3 ? 0.05 : 0;
       o.connect(g); g.connect(filter); o.start();
       voices.push({ osc: o, gain: g });
