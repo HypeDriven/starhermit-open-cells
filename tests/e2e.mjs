@@ -26,6 +26,8 @@ import http from 'node:http';
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import os from 'node:os';
+import { stubStarHermit, launchToken } from './starhermit-e2e.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const MIME = {
@@ -58,6 +60,10 @@ const BASE = `http://127.0.0.1:${server.address().port}`;
 
 const errors = [];
 const SHOT = (stage, vp) => `/tmp/open-cells-e2e-${stage}-${vp}.png`;
+// Screenshots of the language step go to E2E_SHOT_DIR (default: the OS temp dir).
+const LANG_SHOT = (vp) => path.join(process.env.E2E_SHOT_DIR || os.tmpdir(), `open-cells-e2e-language-${vp}.png`);
+// The language step stubs the StarHermit API on this origin; only then are /api requests expected.
+let apiStubbed = false;
 
 function checkErrors(label) {
   const bad = errors.filter((e) => !browserNoise.test(e));
@@ -70,7 +76,7 @@ async function runPass(browser, vpName, contextOptions) {
   page.on('pageerror', (e) => errors.push(`[${vpName}] pageerror: ${e.message}`));
   page.on('request', (r) => {
     const u = new URL(r.url());
-    if (/^(127\.0\.0\.1|localhost)$/.test(u.hostname) && /^\/(api|ws)(\/|$)/.test(u.pathname)) errors.push(`[${vpName}] own-server request: ${r.method()} ${u.pathname}`);
+    if (!apiStubbed && /^(127\.0\.0\.1|localhost)$/.test(u.hostname) && /^\/(api|ws)(\/|$)/.test(u.pathname)) errors.push(`[${vpName}] own-server request: ${r.method()} ${u.pathname}`);
   });
   page.on('websocket', (ws) => errors.push(`[${vpName}] websocket opened: ${ws.url()}`));
   page.on('console', (m) => {
@@ -151,8 +157,8 @@ async function runPass(browser, vpName, contextOptions) {
     await step('enable HTML board via settings (semantic board is clickable)', async () => {
       await overlayButton('title', /^settings$/i);
       await overlay('settings').waitFor({ state: 'visible' });
-      const htmlToggle = overlay('settings')
-        .locator('.setting-toggle', { hasText: 'HTML board' }).locator('input');
+      const htmlToggle = overlay('settings').locator('.setting-toggle')
+        .filter({ has: page.locator('strong', { hasText: /^HTML board$/ }) }).locator('input');
       if (!(await htmlToggle.isChecked())) await htmlToggle.click();
       await waitApp(() => document.body.classList.contains('html-mode'));
       await overlayButton('settings', /^done$/i);
@@ -265,8 +271,8 @@ async function runPass(browser, vpName, contextOptions) {
       await overlayButton('pause', /^settings$/i);
       await overlay('settings').waitFor({ state: 'visible' });
       const before = await app(() => window.OCPlatform.getSettings());
-      await overlay('settings')
-        .locator('.setting-toggle', { hasText: 'Mute all' }).locator('input').click();
+      await overlay('settings').locator('.setting-toggle')
+        .filter({ has: page.locator('strong', { hasText: /^Mute all$/ }) }).locator('input').click();
       await page.screenshot({ path: SHOT('settings', vpName) });
       const after = await app(() => window.OCPlatform.getSettings());
       if (after.muted === before.muted) throw new Error('settings toggle did not persist');
@@ -349,6 +355,68 @@ async function runPass(browser, vpName, contextOptions) {
       if (!progress || !progress['learn-tableau']) throw new Error('lesson progress not saved');
       await results.locator('button', { hasText: /^leave$/i }).first().click();
       await overlay('title').last().waitFor({ state: 'visible' });
+    });
+
+    await step('Language: Automatic follows the StarHermit preferred language; switching mid-deal re-renders in place, syncs ui.language; report a problem', async () => {
+      apiStubbed = true;
+      const calls = await stubStarHermit(page, { preferredLanguage: 'fr-CA' });
+      await page.goto('about:blank');
+      await page.goto(BASE + '/index.html#game_token=' + launchToken(), { waitUntil: 'load' });
+      await waitApp(() => document.documentElement.lang === 'fr-CA' && window.__ocApp && window.__ocApp.phase === 'title');
+      await overlay('title').locator('.btn-play').click();
+      await waitApp(() => window.__ocApp.phase === 'active');
+      const dealId = await app(() => window.__ocApp.config.dealId);
+      if (!/coups/.test(await page.locator('#hud-moves').textContent())) throw new Error('HUD not in French');
+      await clickAction('btn-pause');
+      await overlay('pause').waitFor({ state: 'visible' });
+      await overlayButton('pause', /^Paramètres$/);
+      await overlay('settings').waitFor({ state: 'visible' });
+      const choice = page.locator('[data-game-language="choice"]');
+      await choice.scrollIntoViewIfNeeded();
+      const autoLabel = await choice.locator('option').first().textContent();
+      if (autoLabel !== 'Automatique — Français (Canada)') throw new Error('Automatic label not resolved: ' + autoLabel);
+      await choice.selectOption('de-DE');
+      await waitApp(() => document.documentElement.lang === 'de-DE');
+      await waitApp(() => /Im Konto gespeichert/.test(document.querySelector('[data-game-language="status"]').textContent));
+      if (calls.settings['ui.language']?.choice !== 'de-DE') throw new Error('ui.language not saved: ' + JSON.stringify(calls.settings));
+      const title = await overlay('settings').locator('.screen-title').textContent();
+      if (title !== 'Einstellungen') throw new Error('settings title not re-rendered: ' + title);
+      if (!/^Qualität/.test(await overlay('settings').locator('#gfx-preset').evaluate((n) => n.closest('label').textContent))) throw new Error('graphics labels not re-rendered');
+      if (!/Züge/.test(await page.locator('#hud-moves').textContent())) throw new Error('HUD not re-rendered');
+      await page.locator('[data-game-report="title"]').scrollIntoViewIfNeeded();
+      await page.fill('[data-game-report="title"]', 'Test report');
+      await page.click('[data-game-report="send"]');
+      await waitApp(() => /Bericht gesendet/.test(document.querySelector('[data-game-report="status"]').textContent));
+      if (!calls.reports?.[0] || calls.reports[0].kind !== 'bug') throw new Error('report not posted');
+      await overlay('settings').locator('.screen-title').scrollIntoViewIfNeeded();
+      await page.screenshot({ path: LANG_SHOT(vpName) });
+      await overlayButton('settings', /^Fertig$/);
+      await overlay('settings').waitFor({ state: 'detached' });
+      if (!/^Fortsetzen$/.test(await overlay('pause').locator('.btn-primary').textContent())) throw new Error('pause menu not re-rendered');
+      await overlayButton('pause', /^Fortsetzen$/);
+      await waitApp(() => window.__ocApp.phase === 'active');
+      if ((await app(() => window.__ocApp.config.dealId)) !== dealId) throw new Error('language change restarted the deal');
+      // Account and sync chips (German text) must not cover the topbar buttons.
+      for (const id of ['btn-menu', 'btn-pause']) {
+        const clear = await page.locator('#' + id).evaluate((el) => {
+          const r = el.getBoundingClientRect();
+          const hit = document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2);
+          return r.right <= window.innerWidth && (hit === el || el.contains(hit));
+        });
+        if (!clear) throw new Error(id + ' is covered or cut off in German');
+      }
+      await page.screenshot({ path: LANG_SHOT(vpName + '-hud') });
+      if (await page.locator('#btn-undo').isVisible() && !/Rückgängig/.test(await page.locator('#btn-undo').textContent())) throw new Error('rail not re-rendered');
+      await clickAction('btn-pause');
+      await overlayButton('pause', /^Einstellungen$/);
+      await choice.scrollIntoViewIfNeeded();
+      await choice.selectOption('auto');
+      await waitApp(() => document.documentElement.lang === 'fr-CA');
+      await overlayButton('settings', /^Terminé$/);
+      await overlayButton('pause', /^Quitter la donne$/);
+      await overlay('title').waitFor({ state: 'visible' });
+      await page.unroute(/\/api\/v1\//);
+      apiStubbed = false;
     });
 
     checkErrors(vpName);

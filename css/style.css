@@ -102,6 +102,7 @@ button { font: inherit; }
 
 .topbar-status {
   flex: 1;
+  min-width: 0;
   color: var(--ink-dim);
   font-size: 0.85rem;
   overflow: hidden;
@@ -115,14 +116,21 @@ button { font: inherit; }
 }
 
 #hud-sync {
-  flex: 0 0 auto;
+  flex: 0 1 auto;
   font-size: 0.75rem;
 }
 
 #hud-sync[data-state="synced"] { color: var(--accent); }
 #hud-sync[data-state="error"] { color: var(--danger); }
 
-.topbar-actions { display: flex; gap: 0.5rem; }
+.topbar-actions { display: flex; gap: 0.5rem; flex: 0 0 auto; }
+#brand { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* Narrow phones: account and sync chips shrink (ellipsis) so Menu/Pause stay clear. */
+@media (max-width: 480px) {
+  #topbar { gap: 0.5rem; padding-left: max(0.5rem, env(safe-area-inset-left)); padding-right: max(0.5rem, env(safe-area-inset-right)); }
+  #brand { font-size: 1rem; }
+  #hud-player { max-width: 28%; }
+}
 
 #layout {
   flex: 1;
@@ -564,7 +572,12 @@ html.reduced-motion #dom-board .card.selected { transform: none; }
     background: var(--panel-2);
     border-top: 2px solid var(--trim);
   }
-  #tray .btn { flex: 1; min-height: 44px; }
+  #tray .btn {
+    flex: 1 1 0; min-width: 0; min-height: 44px;
+    padding-left: 0.35rem; padding-right: 0.35rem;
+    /* Long translations (Rückgängig, Suggerimento) wrap instead of pushing the tray off-screen. */
+    white-space: normal; overflow-wrap: anywhere; hyphens: auto; line-height: 1.15;
+  }
   html.left-handed #tray { flex-direction: row-reverse; }
   #layout { position: relative; }
 }

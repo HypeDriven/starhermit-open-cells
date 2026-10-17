@@ -35,6 +35,9 @@ to put a card that has nowhere to go — Open Cells is the puzzle of spending th
 | `vendor/three/` | `three-global.js` (ES-module view of the vendored r152 `window.THREE`) and same-revision addons (`addons/postprocessing`, `addons/shaders`, `addons/environments/RoomEnvironment.js`), loaded on demand through the import map in `index.html`. |
 | `src/board-dom.js` | The HTML board — real `<button>` cards and slots, arrow-key navigation, ARIA labels. |
 | `src/ui.js` | 14 overlay screens, focus trap and restore, HUD, live-region announcements, settings form. |
+| `src/i18n.js` | Localization core (`window.OCI18n`): English-keyed lookup `T()`, nine locales, language wiring through `src/sh-language.js`, live re-render of `data-i18n` markup and bound nodes. |
+| `src/locales/*.js` | String tables: `de`, `es` (es-419 + es-ES differences), `fr` (fr-FR + fr-CA differences), `pt` (pt-BR), `it`, `en-GB` (spelling differences). |
+| `src/sh-language.js` | Unmodified copy of the canonical StarHermit language-preference helper (`window.StarHermitLanguage`). |
 | `src/platform.js` | Settings (+ StarHermit settings KV mirror), save document, local boards, read-only hosted leaderboard, profile nickname/avatar, `game:<slug>` cloud-save mirror, keyboard bindings, sign-in/invite helpers, platform time sync when signed in — all platform calls through the SDK; no own-server calls. |
 | `src/starhermit-sdk.js` | Unmodified copy of the canonical StarHermit client (`window.StarHermit`); owns the launch token and its renewal. |
 | `src/audio.js` | Four buses, authored one-shots from `sfx/`, procedural fallbacks, adaptive pad. |
@@ -321,7 +324,7 @@ up) and a frame-rate readout (bottom-left of the table, never over controls), pl
 the settings key as `graphics`. Low renders directly with no composer, shadows or anti-aliasing (as
 cheap as the former low tier); the composer runs only when an effect needs it. If the addons or the
 chain fail, the table renders without post-processing and the panel says so. The panel's strings
-follow `navigator.language` in the nine supported locales. `data-gfx-preset` on `<body>` and the
+follow the game language (§10) in the nine supported locales and re-render when it changes. `data-gfx-preset` on `<body>` and the
 canvas reports the resolved preset.
 
 **Visual assets the design calls for** (all under `assets/`, all wired through CSS so a missing file
@@ -374,20 +377,35 @@ procedural synth. Pitch variants are derived from the session seed, so a replay 
 
 The required set is en-US, en-GB, es-419, es-ES, de-DE, fr-FR, fr-CA, pt-BR, it-IT.
 
-**Today:** the game ships **en-US only**, except the Settings panel's Graphics controls, whose
-strings live in `src/gfx.js` for all nine locales (chosen from `navigator.language`, regional
-variants falling back to their base table, then en-US). Player-visible strings live inline in `index.html`,
-`src/ui.js`, `src/board-dom.js`, `src/main.js` (toasts, announcements) and `src/rules.js` (the
-message half of every `fail(reason, message)`), and `<html lang="en">` is static. Everything that is
-language-independent is already separated: rejection *reasons* are stable machine ids next to their
-English sentences, card identity is a card id (labels are generated from `RANK_LABELS` /
-`SUIT_SYMBOLS`), numbers and durations are formatted only at presentation (`fmtTime`,
-`fmtDuration`), and content ids never appear in prose. Layout is written for expansion: no fixed-width
-buttons, wrapping rails, and a 70-character maximum line length.
+Every player-facing string ships in all nine locales: static markup (`data-i18n` / `data-i18n-aria` in
+`index.html`), every overlay screen, the HUD and rails, the HTML board's accessible names (card names
+such as "six of spades" are composed per locale), toasts and live-region announcements, confirm
+dialogs, rules and session refusal sentences (`src/rules.js` / `src/session.js` keep English sentences;
+`src/main.js` translates them, including the two with numbers), and the content tables (lesson titles,
+intros and steps, the 40 journey stage titles, challenges, practice difficulties, themes, achievements).
+Strings are keyed by their US-English text in `src/locales/*.js`; es-ES and fr-CA list only their
+differences from es-419 and fr-FR, en-GB only its spelling changes. The Graphics controls and the
+sign-in/invite/leaderboard lines keep their own tables in `src/gfx.js` and follow the same locale.
+The game name, seeds, deal ids and card ranks/suit symbols on card faces stay as-is.
 
-The remaining work — extraction into a string table keyed by the ids above, a locale chooser
-defaulting to `navigator.languages` with a settings override, and the nine catalogues — is listed in
-§17.
+- Settings → **Language → Game language** (rendered by the shared `game-options.js` inside the Graphics
+  group, reachable from the title and the pause menu) offers **Automatic — <resolved language>** plus the
+  nine locales by native name, with a status line (Saved to account / Saved on this device / Account sync
+  unavailable). A change applies immediately: `<html lang>` updates, `data-i18n` markup and every node
+  bound through `OCI18n.bindText`/`bindAttr` re-render, and `OCI18n.onChange` listeners refresh the HUD,
+  the HTML board, the player/sync chips and the Graphics box. Open screens re-render in place; the deal,
+  its clock and selection are untouched.
+- Resolution (`src/sh-language.js`): explicit game choice → for Automatic, the StarHermit account's
+  `preferredLanguage` (`GET /api/v1/me/language`, signed in only) → `navigator.languages` → `en-US`. Tags
+  map to the nearest shipped locale (`es-MX → es-419`, `en-AU → en-GB`, `fr → fr-FR`, `pt-PT → pt-BR`).
+  The choice (`auto` or a locale) is stored per player in `localStorage['open-cells.language.<user|guest>']`
+  and, when signed in, in the per-player settings key `ui.language` as `{ choice }`; a failed settings
+  read never overwrites it, and the game never writes the platform preference. Standalone play makes no
+  language request. `?lang=<tag>` forces a locale for the page load (QA links) and hides the selector.
+- Layout tolerates expansion: no fixed-width buttons, wrapping rails, tray buttons that wrap long words
+  at 390 px, and topbar chips that ellipsize so Menu/Pause stay clear.
+- `tests/i18n.test.js` checks that every key used in markup and code (extracted by `tests/i18n-keys.js`)
+  exists in all nine locales with the same placeholders, and that no table carries stale keys.
 
 ---
 
@@ -431,13 +449,16 @@ requested. `localStorage` stays the offline cache.
 | Token renewal | The SDK re-mints the launch token before expiry. If renewal is refused the player slot clears, a "signed out — playing locally" toast shows, the title re-offers sign-in and play continues locally. |
 | Sign-in | On `*.starhermit.com` without a token the title shows **Sign in with StarHermit** (`StarHermit.signIn()`); hidden when signed in and when running locally. |
 | Identity | Profile nickname (fallback `"Player " + id prefix`) and avatar in the topbar player slot. Never `/api/v1/me`. |
-| Cloud save | Save doc + local boards in the `game:<slug>` slot. Saves debounce 2 s and flush on pagehide/visibilitychange; loads prefer the remote copy when newer; topbar shows sync state; Erase resets the slot. |
+| Cloud save | Save doc + local boards in the `game:<slug>` slot, read and written through `StarHermit.loadJSON` / `writeSave`, so every write after the boot load is conditional on the version it saw. Saves debounce 2 s and flush on pagehide/visibilitychange; topbar shows sync state; Erase resets the slot. The boot load merges the cloud doc with the local cache (`OCPlatform.mergeSaves`): per journey stage the most stars, best score and fewest moves; lessons, dailies (higher score per day) and achievements unioned (earliest unlock); the daily streak with the later date; the larger of each total; this device's in-progress deal (else the cloud's); boards unioned by session id. When another device saved first, the SDK refuses the write and emits `saveconflict`: the game re-reads the slot, applies the same merge and saves the merged document. Neither side's progress is dropped. |
 | Settings KV | Theme, graphics, reduced motion, contrast, text size, handedness, hold-to-drag, haptics, palette, volumes and mute are patched to the per-player settings store on change and applied at boot (the account value wins). |
 | Invite | Signed in, the title shows **Invite a friend**: copies `StarHermit.inviteLink()` to the clipboard and confirms with a toast. |
 | Controls | Keyboard shortcuts and board-mirror arrow navigation route by `KeyboardEvent.code` through `StarHermit.loadBindings()` (platform rebinds over the `control.*` defaults); Settings → Controls, Help and the rail's key hints show the effective keys. |
 | High-score board | Every finished ranked deal (Journey, Daily, Challenge, Score Chase — not Learn or Practice) posts its total through `StarHermit.submitScores` (a practice session whose `score-script.js` posts it to the `high-score` board: integer, higher is better, 0–50,000); the results screen then shows "Leaderboard rank: #N" (or posted / not posted). |
 | Leaderboard (read) | The game's default platform board, nickname-resolved, on the Scores screen. Personal bests stay local + cloud-mirrored. |
 | Daily clock | Signed in, `GET /api/v1/time` (via the SDK) gives a round-trip-adjusted offset; standalone the daily boundary uses the device clock. |
+
+| Report a problem | Settings → **Report a problem** (signed in only, from the shared `game-options.js`) files a bug report through `StarHermit.reportBug` with a small non-personal `context.json` (viewport, language, FPS cap, audio limit). Uncaught errors are filed as crash reports through `StarHermit.captureCrashes` (SDK-capped). |
+| Language | Automatic follows the account's preferred language; an explicit choice syncs as `ui.language` (§10). |
 
 Sign-in/invite labels, toasts and the results leaderboard line are localized in all nine locales (`src/gfx.js` `sh_*` strings).
 
@@ -488,15 +509,21 @@ Learn lesson. It fails on any non-allow-listed console error or warning and scre
 
 ## 14. Testing and acceptance criteria
 
-`npm test` → `node --test tests/rules.test.js tests/session.test.js tests/gfx.test.js`, **37 cases**: card identity and
+`npm test` → `node --test tests/rules.test.js tests/session.test.js tests/gfx.test.js tests/platform.test.js tests/i18n.test.js`: card identity and
 colour, deal shape and seed stability, ordered runs and capacity maths, every rejection reason,
 safe-autoplay cascades, scoring components and tie-breaks, terminal reasons, serialization round-trip
 and shape validation, hint ranking, undo/replay determinism, replay tamper detection, lesson stepping,
 integer tick accounting, a fuzz pass of random commands that must never corrupt the deck, and the
 graphics model (GPU detection, preset/override resolution, render-scale clamp, preset clears
-overrides, legacy migration, cost summary, locale coverage).
+overrides, legacy migration, cost summary, locale coverage), the platform layer (cloud-save round trip with
+ETag-conditional writes, a 412 conflict re-read, `mergeSaves`, sign-in on a UUID host, no network when
+standalone) and i18n coverage.
 
-`npm run test:e2e` → the flow in §13, both viewports, zero page errors.
+`npm run test:e2e` → the flow in §13, both viewports, zero page errors, ending with a language step
+against a stubbed StarHermit API: the account's preferred `fr-CA` makes Automatic resolve to French
+(Canada); switching to Deutsch mid-deal re-renders the settings, pause menu, HUD and rails in place
+without restarting the deal, PUTs `ui.language`, keeps Menu/Pause unobstructed, and Report a problem
+posts to `/reports`.
 `npm run validate` → the offline solver over lessons, journey, challenges and dailies.
 
 **Acceptance bar (checkable):**
@@ -534,7 +561,6 @@ overrides, legacy migration, cost summary, locale coverage).
 
 ## 16. Known limitations
 
-- **English only.** See §10; the string table does not exist yet.
 - **No dead-end detection.** A board with no legal move stays `active`; the player must concede.
   There is no "no moves left" announcement.
 - **`tools/validate.js` cannot prove every future daily.** Seeds are derived from the date, so a
@@ -555,15 +581,12 @@ overrides, legacy migration, cost summary, locale coverage).
 
 ## 17. Design intent not yet implemented
 
-1. **Localization for the nine required locales**: extract every player-visible string into a keyed
-   table (rejection ids already exist), choose the locale from `navigator.languages` with a settings
-   override, and set `<html lang>` at boot.
-2. **"No moves left" detection** — announce it and offer Undo or Concede rather than leaving the
+1. **"No moves left" detection** — announce it and offer Undo or Concede rather than leaving the
    player to notice.
-3. **Static-server hardening**: refuse `tests/`, `tools/` and dotfiles in `server.js`, matching the
+2. **Static-server hardening**: refuse `tests/`, `tools/` and dotfiles in `server.js`, matching the
    repository convention.
-4. **Voice bus content** — the bus exists and is mixed, but nothing is routed to it.
-5. **A brass card-back texture** for the 3D scene's face-down states; the scene currently has no
+3. **Voice bus content** — the bus exists and is mixed, but nothing is routed to it.
+4. **A brass card-back texture** for the 3D scene's face-down states; the scene currently has no
    face-down card, so `backTexture` is drawn procedurally and no authored art is wired to it.
 
 ## Browser interference

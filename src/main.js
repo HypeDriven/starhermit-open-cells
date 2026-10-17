@@ -14,6 +14,17 @@
   var S = global.OCSession;
   var P = global.OCPlatform;
   var A = global.OCAudio;
+  var I = global.OCI18n;
+  var T = I.T;
+
+  // Rules/session refusals carry English sentences; two embed numbers.
+  function refusalText(msg) {
+    var m = /^Not enough free cells to move (\d+) cards \(max (\d+)\)\.$/.exec(msg || '');
+    if (m) return T('Not enough free cells to move {n} cards (max {max}).', { n: m[1], max: m[2] });
+    if (/^The deal is already /.test(msg || '')) return T('The deal is already over.');
+    return T(msg || 'That move is not legal.');
+  }
+  var ZONE_WORDS = { cell: I.N('cell'), foundation: I.N('foundation'), tableau: I.N('column') };
 
   var app = {
     phase: 'boot',           // boot|title|setup|active|paused|results
@@ -73,8 +84,7 @@
   function copyInvite() {
     var link = P.inviteLink();
     if (!link) return;
-    var t = global.OCGfx.strings(global.navigator && navigator.language);
-    var done = function (ok) { app.ui.toast(t(ok ? 'sh_copied' : 'sh_copyFailed')); };
+    var done = function (ok) { app.ui.toast(global.OCGfx.strings(I.lang())(ok ? 'sh_copied' : 'sh_copyFailed')); };
     try {
       navigator.clipboard.writeText(link).then(function () { done(true); }, function () { done(false); });
     } catch (e) { done(false); }
@@ -91,7 +101,7 @@
     if (loaded.conflict) {
       // Corrupt save preserved under a side key; start clean, tell the player.
       setTimeout(function () {
-        app.ui.announce('A saved progress file was damaged and has been preserved separately. Starting fresh.', true);
+        app.ui.announce(T('A saved progress file was damaged and has been preserved separately. Starting fresh.'), true);
       }, 500);
     }
 
@@ -144,36 +154,49 @@
     P.loadPlatformSettings().then(function (s) { if (s) applySettings(s); });
     P.onAuth(function (a) {
       if (!a.signedIn) {
-        var t = global.OCGfx.strings(global.navigator && navigator.language);
-        app.ui.toast(t('sh_signedOut'));
+        app.ui.toast(global.OCGfx.strings(I.lang())('sh_signedOut'));
       }
       if (app.phase === 'title' && app.ui.topScreenName() === 'title') { app.ui.closeAll(); showTitle(); }
     });
     P.syncTime();
-    // Hosted: adopt the cloud mirror when it is newer than the local cache
-    // (remote-preferred on conflict). localStorage stays the offline cache.
-    P.loadCloudSave().then(function (remote) {
-      if (!remote) return;
-      var changed = false;
-      var remoteTime = Date.parse((remote.save && remote.save.updatedAt) || '') || 0;
-      var localTime = Date.parse(app.save.updatedAt || '') || 0;
-      if (remote.save && (!app.save.updatedAt || remoteTime > localTime)) {
-        app.save = P.adoptSave(remote.save);
-        changed = true;
-        app.ui.announce('Progress restored from your StarHermit cloud save.', false);
-      }
-      if (remote.boards && remote.boards.boards) changed = P.mergeBoards(remote.boards) || changed;
-      if (!changed) return;
-      P.persistSave(app.save);
-      if (app.phase === 'title' && app.ui.topScreenName() === 'title') {
-        app.ui.closeAll();
-        showTitle();
-      }
+    // Hosted: merge the cloud mirror with the local cache (P.mergeSaves keeps
+    // every completion, best and unlock from both; this device's in-progress
+    // deal wins). localStorage stays the offline cache.
+    P.loadCloudSave().then(function (remote) { adoptRemote(remote, true); });
+    // Another device saved first: the SDK refused our write; merge and save again.
+    P.onSaveConflict(function (remote) { adoptRemote(remote, false); });
+    // Language changes: bound/markup text re-renders itself; refresh the rest.
+    I.onChange(function () {
+      updateHud();
+      refreshBoard();
+      app.ui.relabel();
     });
 
     app.phase = 'title';
+    updateHud();
     showTitle();
     global.__ocApp = app; // debug/self-test handle; not used by gameplay
+  }
+
+  function adoptRemote(remote, atBoot) {
+    var changed = false;
+    if (remote && remote.save) {
+      var before = JSON.stringify(app.save);
+      var merged = P.mergeSaves(remote.save, app.save);
+      if (JSON.stringify(merged) !== before) {
+        app.save = merged;
+        changed = true;
+        if (atBoot) app.ui.announce(T('Progress restored from your StarHermit cloud save.'), false);
+      }
+    }
+    if (remote && remote.boards && remote.boards.boards) changed = P.mergeBoards(remote.boards) || changed;
+    // After a conflict the merged copy must be written back even when it equals ours.
+    if (!changed && atBoot) return;
+    P.persistSave(app.save);
+    if (changed && app.phase === 'title' && app.ui.topScreenName() === 'title') {
+      app.ui.closeAll();
+      showTitle();
+    }
   }
 
   function currentTheme() {
@@ -341,7 +364,7 @@
     startTicking();
 
     var objective = objectiveText();
-    app.ui.announce(objective + ' Deal ' + config.dealId + '.', false);
+    app.ui.announce(objective + ' ' + T('Deal {id}.', { id: config.dealId }), false);
     updateHud();
 
     // Learn mode: surface the current lesson step.
@@ -350,14 +373,15 @@
 
   function objectiveText() {
     var c = app.config;
-    var base = 'Build all four foundations, ace to king.';
+    var base = T('Build all four foundations, ace to king.');
     if (!c) return base;
     var cons = c.constraints || {};
-    var extras = [];
-    if (cons.moveLimit) extras.push('within ' + cons.moveLimit + ' moves');
-    if (cons.timeLimitMs) extras.push('within ' + global.OCUi.fmtTime(cons.timeLimitMs));
-    if (c.mode === 'learn' && c.lesson) return c.lesson.title + ': ' + (c.lesson.steps[0] ? c.lesson.steps[0].text : base);
-    return extras.length ? base + ' Win ' + extras.join(' and ') + '.' : base;
+    if (c.mode === 'learn' && c.lesson) return T(c.lesson.title) + ': ' + (c.lesson.steps[0] ? T(c.lesson.steps[0].text) : base);
+    var time = cons.timeLimitMs ? global.OCUi.fmtTime(cons.timeLimitMs) : null;
+    if (cons.moveLimit && time) return base + ' ' + T('Win within {n} moves and within {time}.', { n: cons.moveLimit, time: time });
+    if (cons.moveLimit) return base + ' ' + T('Win within {n} moves.', { n: cons.moveLimit });
+    if (time) return base + ' ' + T('Win within {time}.', { time: time });
+    return base;
   }
 
   function resumeSnapshot() {
@@ -382,7 +406,7 @@
       syncViews(true);
       startTicking();
       updateHud();
-      app.ui.announce('Resumed deal ' + snap.config.dealId + '. While you were away the clock was paused.', false);
+      app.ui.announce(T('Resumed deal {id}. While you were away the clock was paused.', { id: snap.config.dealId }), false);
     } catch (e) {
       app.save.lastSnapshot = null;
       P.persistSave(app.save);
@@ -409,11 +433,11 @@
     var line = document.getElementById('results-lb');
     if (!line) return;
     if (!ranked || !P.getIdentity().hosted) { line.hidden = true; return; }
-    var t = global.OCGfx.strings(global.navigator && navigator.language);
+    var t = function () { return global.OCGfx.strings(I.lang()); };
     line.hidden = false;
-    line.textContent = t('sh_lbPosting');
+    I.bindText(line, function () { return t()('sh_lbPosting'); });
     P.postHighScore(Math.max(0, Math.round(total))).then(function (r) {
-      line.textContent = !r.posted ? t('sh_lbNotPosted') : r.rank ? t('sh_lbRank', r.rank) : t('sh_lbPosted');
+      I.bindText(line, function () { return !r.posted ? t()('sh_lbNotPosted') : r.rank ? t()('sh_lbRank', r.rank) : t()('sh_lbPosted'); });
     });
   }
 
@@ -492,15 +516,15 @@
     } else if (event.type === 'invalid') {
       A.play('invalid');
       if (app.renderer) app.renderer.playEvent('invalid');
-      app.ui.announce(event.message || 'That move is not legal.', true);
-      toast(event.message || 'That move is not legal.');
+      app.ui.announce(refusalText(event.message), true);
+      toast(refusalText(event.message));
       updateHud();
     } else if (event.type === 'undo') {
       A.play('undo');
       clearSelection();
       syncViews(false);
       updateHud();
-      app.ui.announce('Undone.', false);
+      app.ui.announce(T('Undone.'), false);
     } else if (event.type === 'lesson-step') {
       A.play('lesson-step');
       if (event.done) lessonComplete();
@@ -611,8 +635,8 @@
       mode: app.config.mode,
       stars: stars,
       achievements: newlyUnlocked,
-      onNextLabel: app.config.mode === 'journey' && won ? 'Next stage'
-        : app.config.mode === 'learn' ? 'Next lesson' : null
+      onNextLabel: app.config.mode === 'journey' && won ? I.N('Next stage')
+        : app.config.mode === 'learn' ? I.N('Next lesson') : null
     });
     postHighScore(app.config.ranked, score.total);
   }
@@ -641,7 +665,7 @@
     if (!ls) return;
     var step = ls.def.steps[ls.stepIndex];
     updateHud();
-    if (step) app.ui.announce('Lesson: ' + step.text, false);
+    if (step) app.ui.announce(T('Lesson: {text}', { text: T(step.text) }), false);
   }
 
   function lessonComplete() {
@@ -672,7 +696,7 @@
       mode: 'learn',
       stars: 0,
       achievements: newly,
-      onNextLabel: 'Next lesson'
+      onNextLabel: I.N('Next lesson')
     });
   }
 
@@ -728,8 +752,9 @@
     if (sel) {
       var id = sel.cardIds[0];
       var n = sel.cardIds.length;
-      app.ui.announce('Selected ' + global.OCBoardDom.cardWords(id) + (n > 1 ? ' and ' + (n - 1) + ' more' : '') +
-        '. ' + targets.length + ' legal target' + (targets.length === 1 ? '' : 's') + '.', false);
+      app.ui.announce((n > 1 ? T('Selected {card} and {n} more.', { card: global.OCBoardDom.cardWords(id), n: n - 1 })
+        : T('Selected {card}.', { card: global.OCBoardDom.cardWords(id) })) + ' ' +
+        (targets.length === 1 ? T('1 legal target.') : T('{n} legal targets.', { n: targets.length })), false);
     }
   }
 
@@ -864,7 +889,11 @@
   }
 
   function updateHud() {
-    if (!app.session) return;
+    if (!app.session) {
+      if (app.ui) app.ui.updateHud({ objective: objectiveText(), progress: T('{n} / 52 home', { n: 0 }), moves: T('{n} moves', { n: 0 }),
+        time: '0:00', score: '0', deal: '', undoCount: '0', lessonText: '' });
+      return;
+    }
     var st = app.session.state;
     var home = 0;
     st.foundations.forEach(function (f) { home += f.length; });
@@ -872,15 +901,15 @@
     var lesson = S.lessonState(app.session);
     app.ui.updateHud({
       objective: objectiveText(),
-      progress: home + ' / 52 home',
-      moves: st.moves + ' moves' + (st.constraints.moveLimit ? ' / ' + st.constraints.moveLimit : ''),
+      progress: T('{n} / 52 home', { n: home }),
+      moves: st.constraints.moveLimit ? T('{n} moves / {max}', { n: st.moves, max: st.constraints.moveLimit }) : T('{n} moves', { n: st.moves }),
       time: global.OCUi.fmtTime(st.elapsedMs) + (st.constraints.timeLimitMs ? ' / ' + global.OCUi.fmtTime(st.constraints.timeLimitMs) : ''),
       score: String(score.total),
       deal: app.config.dealId,
       undoCount: String(app.session.undoStack.length),
       lessonText: lesson && lesson.stepIndex < lesson.total
-        ? 'Lesson ' + (lesson.stepIndex + 1) + '/' + lesson.total + ': ' + lesson.def.steps[lesson.stepIndex].text
-        : (lesson ? 'Lesson complete.' : '')
+        ? T('Lesson {n}/{total}: {text}', { n: lesson.stepIndex + 1, total: lesson.total, text: T(lesson.def.steps[lesson.stepIndex].text) })
+        : (lesson ? T('Lesson complete.') : '')
     });
   }
 
@@ -903,7 +932,7 @@
   function doHint() {
     if (!app.session || app.phase !== 'active' || app.paused) return;
     var h = S.hint(app.session);
-    if (!h) { app.ui.announce('No moves available.', true); return; }
+    if (!h) { app.ui.announce(T('No moves available.'), true); return; }
     app.hintAction = h;
     A.play('hint');
     refreshBoard();
@@ -914,8 +943,9 @@
     var id = h.from.zone === 'cell' ? app.session.state.cells[h.from.index]
       : h.from.zone === 'foundation' ? null
       : R.topOfColumn(app.session.state, h.from.index);
-    app.ui.announce('Hint: move ' + (id != null ? global.OCBoardDom.cardWords(id) : 'a card') +
-      ' to ' + h.to.zone + ' ' + (h.to.index + 1) + '.', false);
+    app.ui.announce(T('Hint: move {card} to {zone} {n}.', {
+      card: id != null ? global.OCBoardDom.cardWords(id) : T('a card'), zone: T(ZONE_WORDS[h.to.zone] || h.to.zone), n: h.to.index + 1
+    }), false);
   }
 
   function doAuto() {
@@ -946,7 +976,7 @@
   function doConcede() {
     if (!app.session || app.phase !== 'active' || app.paused) return;
     if (app.session.state.status !== 'active') return;
-    if (global.confirm('Concede this deal?')) {
+    if (global.confirm(T('Concede this deal?'))) {
       S.execute(app.session, { id: cmdId(), type: 'concede' });
     }
   }
@@ -959,7 +989,7 @@
     bind('#btn-pause', doPause);
     bind('#btn-concede', doConcede);
     bind('#btn-restart', function () {
-      if (global.confirm('Restart this deal from the beginning?')) retryDeal();
+      if (global.confirm(T('Restart this deal from the beginning?'))) retryDeal();
     });
     bind('#btn-menu', function () {
       if (app.phase === 'active' || app.phase === 'paused') doPause();
@@ -981,7 +1011,7 @@
       else if (act === 'auto') { ev.preventDefault(); doAuto(); }
       else if (act === 'cameraReset') { if (app.renderer) app.renderer.resetCamera(); }
       else if (act === 'restart') {
-        if ((app.phase === 'active' || app.phase === 'paused') && global.confirm('Restart this deal from the beginning?')) retryDeal();
+        if ((app.phase === 'active' || app.phase === 'paused') && global.confirm(T('Restart this deal from the beginning?'))) retryDeal();
       }
       else if (act === 'cancel') {
         if (app.selection) { select(null, true); A.play('deselect'); refreshBoard(); }

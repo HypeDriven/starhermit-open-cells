@@ -185,6 +185,48 @@
     return doc;
   }
 
+  // Merge two save documents (another device saved since our last load, or the
+  // boot load found a different cloud copy): every completion, best and unlock
+  // from either side survives; this device's in-progress deal wins.
+  function mergeSaves(remote, local) {
+    var a = adoptSave(remote ? JSON.parse(JSON.stringify(remote)) : null);
+    var b = adoptSave(local ? JSON.parse(JSON.stringify(local)) : null);
+    function earlier(x, y) { return !x ? y : !y ? x : (String(x) < String(y) ? x : y); }
+    var out = emptySave();
+    Object.keys(Object.assign({}, a.journey, b.journey)).forEach(function (id) {
+      var x = a.journey[id], y = b.journey[id];
+      if (!x || !y) { out.journey[id] = x || y; return; }
+      out.journey[id] = {
+        stars: Math.max(x.stars || 0, y.stars || 0),
+        bestScore: Math.max(x.bestScore || 0, y.bestScore || 0),
+        bestMoves: Math.min(x.bestMoves != null ? x.bestMoves : Infinity, y.bestMoves != null ? y.bestMoves : Infinity),
+        completedAt: earlier(x.completedAt, y.completedAt)
+      };
+      if (!isFinite(out.journey[id].bestMoves)) out.journey[id].bestMoves = null;
+    });
+    Object.keys(Object.assign({}, a.lessons, b.lessons)).forEach(function (id) {
+      var x = a.lessons[id], y = b.lessons[id];
+      out.lessons[id] = x && y ? { completedAt: earlier(x.completedAt, y.completedAt) } : (x || y);
+    });
+    Object.keys(Object.assign({}, a.dailies, b.dailies)).forEach(function (d) {
+      var x = a.dailies[d], y = b.dailies[d];
+      out.dailies[d] = !x ? y : !y ? x : ((y.score || 0) > (x.score || 0) ? y : x);
+    });
+    var sa = a.dailyStreak || {}, sb = b.dailyStreak || {};
+    out.dailyStreak = String(sa.lastDate || '') === String(sb.lastDate || '')
+      ? { count: Math.max(sa.count || 0, sb.count || 0), lastDate: sa.lastDate || sb.lastDate || null }
+      : (String(sa.lastDate || '') > String(sb.lastDate || '') ? sa : sb);
+    Object.keys(Object.assign({}, a.achievements, b.achievements)).forEach(function (k) {
+      out.achievements[k] = earlier(a.achievements[k], b.achievements[k]);
+    });
+    ['foundations', 'wins', 'played'].forEach(function (k) {
+      out.totals[k] = Math.max((a.totals && a.totals[k]) || 0, (b.totals && b.totals[k]) || 0);
+    });
+    out.lastSnapshot = b.lastSnapshot || a.lastSnapshot || null;
+    out.updatedAt = String(a.updatedAt || '') > String(b.updatedAt || '') ? a.updatedAt : b.updatedAt;
+    return out;
+  }
+
   // Validate/migrate a save document received from the cloud slot.
   function adoptSave(doc) {
     if (!doc || typeof doc !== 'object') return emptySave();
@@ -331,7 +373,11 @@
   // Nickname from the profile (NEVER /api/v1/me). Fallback: "Player " + id
   // prefix. Surfaced through the status listeners with the cloud sync state.
 
-  function fallbackName(id) { return id ? 'Player ' + String(id).slice(0, 6) : null; }
+  function fallbackName(id) {
+    if (!id) return null;
+    var I = global.OCI18n;
+    return I ? I.T('Player {id}', { id: String(id).slice(0, 6) }) : 'Player ' + String(id).slice(0, 6);
+  }
   var identity = { sub: isHosted() ? SH.userId : null, name: isHosted() ? fallbackName(SH.userId) : null, avatar: null };
   var statusListeners = [];
   var syncState = isHosted() ? 'saving' : 'offline';
@@ -359,7 +405,7 @@
   function fetchProfile() {
     if (!isHosted()) return;
     SH.profile().then(function (p) {
-      if (p && p.displayName) identity.name = p.displayName;
+      if (p && p.displayName) { identity.name = p.displayName; identity.named = true; }
       emitStatus();
     }).catch(function () { emitStatus(); }); // fallback name is already set
     SH.avatarUrl().then(function (url) {
@@ -368,7 +414,7 @@
   }
 
   function profileNameFor(userId) {
-    if (userId === undefined || userId === null) return Promise.resolve('Player');
+    if (userId === undefined || userId === null) return Promise.resolve(global.OCI18n ? global.OCI18n.T('Player') : 'Player');
     return SH.profile(String(userId)).then(function (p) {
       return (p && p.displayName) || fallbackName(userId);
     }).catch(function () { return fallbackName(userId); });
@@ -467,9 +513,28 @@
   }
   function onAuth(fn) { authListeners.push(fn); }
 
+  // A write lost to a save made on another device (the SDK refused it and
+  // blocks writes until the slot is re-read): re-read it, union the boards, and
+  // hand the remote save doc to the game, which merges and persists again.
+  var conflictListeners = [];
+  if (SH) {
+    SH.on('saveconflict', function () {
+      loadCloudSave().then(function (remote) {
+        if (remote && remote.boards && remote.boards.boards) mergeBoards(remote.boards);
+        conflictListeners.forEach(function (fn) { try { fn(remote); } catch (e) {} });
+      });
+    });
+  }
+  function onSaveConflict(fn) { conflictListeners.push(fn); }
+
   // ---------------------------------------------------------------- init & expose
 
   fetchProfile();
+  // The fallback "Player <id>" name follows the game language.
+  if (global.OCI18n) global.OCI18n.onChange(function () {
+    if (identity.sub && !identity.named) identity.name = fallbackName(identity.sub);
+    emitStatus();
+  });
 
   global.OCPlatform = {
     SAVE_VERSION: SAVE_VERSION,
@@ -480,6 +545,8 @@
     migrateSave: migrateSave,
     emptySave: emptySave,
     adoptSave: adoptSave,
+    mergeSaves: mergeSaves,
+    onSaveConflict: onSaveConflict,
     checksum: checksum,
     submitScore: submitScore,
     getBoard: getBoard,

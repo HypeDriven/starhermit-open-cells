@@ -11,12 +11,16 @@
   'use strict';
 
   var R = global.OCRules;
-  var SUIT_WORDS = ['spades', 'hearts', 'diamonds', 'clubs'];
-  var RANK_WORDS = ['ace', 'two', 'three', 'four', 'five', 'six', 'seven',
-    'eight', 'nine', 'ten', 'jack', 'queen', 'king'];
+  var I = global.OCI18n;
+  var T = I.T, N = I.N;
+  var SUIT_WORDS = [N('spades'), N('hearts'), N('diamonds'), N('clubs')];
+  var RANK_WORDS = [N('ace'), N('two'), N('three'), N('four'), N('five'), N('six'), N('seven'),
+    N('eight'), N('nine'), N('ten'), N('jack'), N('queen'), N('king')];
+  var FOUNDATION_WORDS = [N('spades foundation'), N('hearts foundation'), N('diamonds foundation'), N('clubs foundation')];
 
+  // Spoken card name in the game language ("six of spades").
   function cardWords(id) {
-    return RANK_WORDS[R.rankOf(id) - 1] + ' of ' + SUIT_WORDS[R.suitOf(id)];
+    return T('{rank} of {suit}', { rank: T(RANK_WORDS[R.rankOf(id) - 1]), suit: T(SUIT_WORDS[R.suitOf(id)]) });
   }
 
   function el(tag, cls, text) {
@@ -36,22 +40,30 @@
 
     container.classList.add('dom-board');
     container.setAttribute('role', 'group');
-    container.setAttribute('aria-label', 'Card table');
+    I.bindAttr(container, 'aria-label', I.L('Card table'));
 
     var topRow = el('div', 'dom-top');
     var cellsSec = el('section', 'dom-cells');
-    cellsSec.setAttribute('aria-label', 'Temporary cells');
-    var cellsHead = el('h3', 'visually-hidden', 'Temporary cells');
+    cellsSec.setAttribute('data-i18n-aria', 'Temporary cells');
+    cellsSec.setAttribute('aria-label', T('Temporary cells'));
+    var cellsHead = el('h3', 'visually-hidden', T('Temporary cells'));
+    cellsHead.setAttribute('data-i18n', 'Temporary cells');
     cellsSec.appendChild(cellsHead);
     var foundSec = el('section', 'dom-foundations');
-    foundSec.setAttribute('aria-label', 'Foundations');
-    foundSec.appendChild(el('h3', 'visually-hidden', 'Foundations'));
+    foundSec.setAttribute('data-i18n-aria', 'Foundations');
+    foundSec.setAttribute('aria-label', T('Foundations'));
+    var foundHead = el('h3', 'visually-hidden', T('Foundations'));
+    foundHead.setAttribute('data-i18n', 'Foundations');
+    foundSec.appendChild(foundHead);
     topRow.appendChild(cellsSec);
     topRow.appendChild(foundSec);
 
     var tableauSec = el('section', 'dom-tableau');
-    tableauSec.setAttribute('aria-label', 'Tableau');
-    tableauSec.appendChild(el('h3', 'visually-hidden', 'Tableau'));
+    tableauSec.setAttribute('data-i18n-aria', 'Tableau');
+    tableauSec.setAttribute('aria-label', T('Tableau'));
+    var tableauHead = el('h3', 'visually-hidden', T('Tableau'));
+    tableauHead.setAttribute('data-i18n', 'Tableau');
+    tableauSec.appendChild(tableauHead);
 
     container.appendChild(topRow);
     container.appendChild(tableauSec);
@@ -72,7 +84,7 @@
       var b = el('button', 'slot ' + (extraCls || ''), shortText != null ? shortText : ariaLabel);
       b.type = 'button';
       b.dataset.loc = locKey(loc);
-      b.setAttribute('aria-label', ariaLabel + (isLegalTarget(loc) ? ' — legal target' : ''));
+      b.setAttribute('aria-label', ariaLabel + (isLegalTarget(loc) ? T(' — legal target') : ''));
       if (isLegalTarget(loc)) b.classList.add('legal-target');
       if (isHintLoc(loc)) b.classList.add('hint-target');
       b.addEventListener('click', function () { hooks.onSlot(loc); });
@@ -90,8 +102,8 @@
       b.querySelector('.card-rank').textContent = rank;
       b.querySelector('.card-suit').textContent = sym;
       var where = loc.zone === 'tableau'
-        ? 'column ' + (loc.index + 1) + ', card ' + (depth + 1) + ' of ' + total
-        : loc.zone === 'cell' ? 'cell ' + (loc.index + 1) : SUIT_WORDS[loc.index] + ' foundation';
+        ? T('column {c}, card {n} of {total}', { c: loc.index + 1, n: depth + 1, total: total })
+        : loc.zone === 'cell' ? T('cell {n}', { n: loc.index + 1 }) : T(FOUNDATION_WORDS[loc.index]);
       b.setAttribute('aria-label', cardWords(id) + ', ' + where);
       if (isSelected(loc) && (loc.zone !== 'tableau' || depth >= total - (selection.count || 1))) b.classList.add('selected');
       if (isLegalTarget(loc) && depth === total - 1) b.classList.add('legal-target');
@@ -116,7 +128,7 @@
           dis.setAttribute('aria-hidden', 'true');
           cellsSec.appendChild(dis);
         } else if (id === null) {
-          cellsSec.appendChild(makeSlotButton({ zone: 'cell', index: i }, 'Empty cell ' + (i + 1), null, 'Cell ' + (i + 1)));
+          cellsSec.appendChild(makeSlotButton({ zone: 'cell', index: i }, T('Empty cell {n}', { n: i + 1 }), null, T('Cell {n}', { n: i + 1 })));
         } else {
           cellsSec.appendChild(makeCardButton(id, { zone: 'cell', index: i }, 0, 1));
         }
@@ -128,7 +140,7 @@
         var pile = state.foundations[f];
         if (pile.length === 0) {
           foundSec.appendChild(makeSlotButton({ zone: 'foundation', index: f },
-            SUIT_WORDS[f] + ' foundation, empty', null, R.SUIT_SYMBOLS[f]));
+            T('{foundation}, empty', { foundation: T(FOUNDATION_WORDS[f]) }), null, R.SUIT_SYMBOLS[f]));
         } else {
           var top = pile[pile.length - 1];
           foundSec.appendChild(makeCardButton(top, { zone: 'foundation', index: f }, pile.length - 1, pile.length));
@@ -140,9 +152,9 @@
       for (var c = 0; c < R.NUM_COLUMNS; c++) {
         var colEl = el('div', 'dom-column');
         colEl.setAttribute('role', 'group');
-        colEl.setAttribute('aria-label', 'Column ' + (c + 1) + (state.tableau[c].length ? '' : ', empty'));
+        colEl.setAttribute('aria-label', state.tableau[c].length ? T('Column {n}', { n: c + 1 }) : T('Column {n}, empty', { n: c + 1 }));
         if (state.tableau[c].length === 0) {
-          colEl.appendChild(makeSlotButton({ zone: 'tableau', index: c }, 'Empty column ' + (c + 1), 'column-slot'));
+          colEl.appendChild(makeSlotButton({ zone: 'tableau', index: c }, T('Empty column {n}', { n: c + 1 }), 'column-slot'));
         } else {
           for (var d = 0; d < state.tableau[c].length; d++) {
             colEl.appendChild(makeCardButton(state.tableau[c][d], { zone: 'tableau', index: c }, d, state.tableau[c].length));

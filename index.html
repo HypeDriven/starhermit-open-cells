@@ -16,58 +16,56 @@
 <script src="browser-guard.js"></script>
 </head>
 <body>
-<a class="skip-link" href="#game-heading">Skip to the card table</a>
+<a class="skip-link" href="#game-heading" data-i18n="Skip to the card table">Skip to the card table</a>
 
 <div id="app">
   <header id="topbar">
     <div id="brand">Open Cells</div>
-    <div id="hud-player" class="topbar-status" aria-label="Player" hidden></div>
-    <div id="hud-sync" class="topbar-status" aria-label="Cloud save status" hidden></div>
-    <div id="hud-deal" class="topbar-status" aria-label="Current deal"></div>
+    <div id="hud-player" class="topbar-status" aria-label="Player" data-i18n-aria="Player" hidden></div>
+    <div id="hud-sync" class="topbar-status" aria-label="Cloud save status" data-i18n-aria="Cloud save status" hidden></div>
+    <div id="hud-deal" class="topbar-status" aria-label="Current deal" data-i18n-aria="Current deal"></div>
     <div class="topbar-actions">
-      <button id="btn-menu" class="btn btn-quiet" type="button">Menu</button>
-      <button id="btn-pause" class="btn" type="button">Pause</button>
+      <button id="btn-menu" class="btn btn-quiet" type="button" data-i18n="Menu">Menu</button>
+      <button id="btn-pause" class="btn" type="button" data-i18n="Pause">Pause</button>
     </div>
   </header>
 
   <div id="layout">
-    <aside id="rail-left" aria-label="Objective and progress">
-      <h2 class="rail-heading">Objective</h2>
+    <aside id="rail-left" aria-label="Objective and progress" data-i18n-aria="Objective and progress">
+      <h2 class="rail-heading" data-i18n="Objective">Objective</h2>
       <p id="hud-objective">Build all four foundations, ace to king.</p>
-      <h2 class="rail-heading">Progress</h2>
+      <h2 class="rail-heading" data-i18n="Progress">Progress</h2>
       <p id="hud-progress" aria-live="off">0 / 52 home</p>
       <p id="hud-moves">0 moves</p>
       <p id="hud-time">0:00</p>
-      <p id="hud-score-wrap">Score <span id="hud-score">0</span></p>
+      <p id="hud-score-wrap"><span data-i18n="Score">Score</span> <span id="hud-score">0</span></p>
       <p id="hud-lesson" class="lesson-banner hidden" role="status"></p>
     </aside>
 
-    <main id="game-region" aria-label="Playfield">
-      <h2 id="game-heading" class="visually-hidden">Card table</h2>
+    <main id="game-region" aria-label="Playfield" data-i18n-aria="Playfield">
+      <h2 id="game-heading" class="visually-hidden" data-i18n="Card table">Card table</h2>
       <canvas id="scene" aria-hidden="true"></canvas>
-      <p id="webgl-note" class="webgl-note hidden">
-        3D view is unavailable on this device or disabled in settings — you are playing on the fully featured HTML board.
-      </p>
+      <p id="webgl-note" class="webgl-note hidden" data-i18n="3D view is unavailable on this device or disabled in settings — you are playing on the fully featured HTML board.">3D view is unavailable on this device or disabled in settings — you are playing on the fully featured HTML board.</p>
       <div id="dom-board" role="group" aria-label="Card table (HTML)"></div>
       <div id="toast" role="status" aria-live="polite"></div>
     </main>
 
-    <aside id="rail-right" aria-label="Actions">
-      <h2 class="rail-heading">Actions</h2>
-      <button id="btn-undo" class="btn" type="button">Undo <kbd>Z</kbd> <span id="hud-undo-count" class="pill">0</span></button>
-      <button id="btn-hint" class="btn" type="button">Hint <kbd>H</kbd></button>
-      <button id="btn-auto" class="btn" type="button">Collect <kbd>A</kbd></button>
-      <button id="btn-skip-anim" class="btn" type="button">Settle</button>
-      <button id="btn-restart" class="btn" type="button">Restart</button>
-      <button id="btn-concede" class="btn btn-quiet" type="button">Concede</button>
+    <aside id="rail-right" aria-label="Actions" data-i18n-aria="Actions">
+      <h2 class="rail-heading" data-i18n="Actions">Actions</h2>
+      <button id="btn-undo" class="btn" type="button"><span data-i18n="Undo">Undo</span> <kbd>Z</kbd> <span id="hud-undo-count" class="pill">0</span></button>
+      <button id="btn-hint" class="btn" type="button"><span data-i18n="Hint">Hint</span> <kbd>H</kbd></button>
+      <button id="btn-auto" class="btn" type="button"><span data-i18n="Collect">Collect</span> <kbd>A</kbd></button>
+      <button id="btn-skip-anim" class="btn" type="button" data-i18n="Settle">Settle</button>
+      <button id="btn-restart" class="btn" type="button" data-i18n="Restart">Restart</button>
+      <button id="btn-concede" class="btn btn-quiet" type="button" data-i18n="Concede">Concede</button>
     </aside>
   </div>
 
-  <nav id="tray" aria-label="Quick actions">
-    <button class="btn" type="button" data-mirror="btn-undo">Undo</button>
-    <button class="btn" type="button" data-mirror="btn-hint">Hint</button>
-    <button class="btn" type="button" data-mirror="btn-auto">Collect</button>
-    <button class="btn" type="button" data-mirror="btn-pause">Pause</button>
+  <nav id="tray" aria-label="Quick actions" data-i18n-aria="Quick actions">
+    <button class="btn" type="button" data-mirror="btn-undo" data-i18n="Undo">Undo</button>
+    <button class="btn" type="button" data-mirror="btn-hint" data-i18n="Hint">Hint</button>
+    <button class="btn" type="button" data-mirror="btn-auto" data-i18n="Collect">Collect</button>
+    <button class="btn" type="button" data-mirror="btn-pause" data-i18n="Pause">Pause</button>
   </nav>
 
   <div id="screens"></div>
@@ -79,6 +77,14 @@
   <p style="padding:2rem;font-family:serif">Open Cells needs JavaScript to run — the whole game, rules included, is a local deterministic simulation.</p>
 </noscript>
 
+<script src="src/sh-language.js"></script>
+<script src="src/locales/en-GB.js"></script>
+<script src="src/locales/es.js"></script>
+<script src="src/locales/de.js"></script>
+<script src="src/locales/fr.js"></script>
+<script src="src/locales/pt.js"></script>
+<script src="src/locales/it.js"></script>
+<script src="src/i18n.js"></script>
 <script src="vendor/three.min.js?v=production-qa-1"></script>
 <script src="src/rules.js"></script>
 <script src="src/content.js"></script>

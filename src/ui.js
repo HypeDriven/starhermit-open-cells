@@ -11,13 +11,20 @@
   var R = global.OCRules;
   var C = global.OCContent;
   var P = global.OCPlatform;
+  var I = global.OCI18n;
+  var T = I.T, L = I.L;
 
+  // `text` may be a string or a thunk (an L() call or a function); thunks are bound so
+  // a language change re-renders the node in place.
   function el(tag, cls, text) {
     var e = document.createElement(tag);
     if (cls) e.className = cls;
-    if (text != null) e.textContent = text;
+    if (typeof text === 'function') I.bindText(e, text);
+    else if (text != null) e.textContent = text;
     return e;
   }
+
+  function gfxT() { return global.OCGfx.strings(I.lang()); }
 
   function button(label, cls, onClick) {
     var b = el('button', cls || 'btn', label);
@@ -35,7 +42,7 @@
   function fmtDuration(ms) {
     var h = Math.floor(ms / 3600000);
     var m = Math.floor((ms % 3600000) / 60000);
-    return h > 0 ? h + 'h ' + m + 'm' : m + 'm';
+    return h > 0 ? T('{h}h {m}m', { h: h, m: m }) : T('{m}m', { m: m });
   }
 
   // ---------------------------------------------------------------- ui shell
@@ -74,7 +81,8 @@
       var dialog = el('div', 'screen ' + (opts.wide ? 'screen-wide' : ''));
       dialog.setAttribute('role', 'dialog');
       dialog.setAttribute('aria-modal', 'true');
-      var heading = el('h2', 'screen-title', opts.title || name);
+      var titleFn = typeof opts.title === 'function' ? opts.title : function () { return opts.title || name; };
+      var heading = el('h2', 'screen-title', titleFn);
       heading.tabIndex = -1;
       dialog.appendChild(heading);
       // Every overlay carries a persistent 44px Close control (touch-reachable
@@ -84,7 +92,7 @@
           closeTop();
           if (actions.onOverlayClosed) actions.onOverlayClosed(name);
         });
-        closeBtn.setAttribute('aria-label', 'Close ' + (opts.title || name));
+        I.bindAttr(closeBtn, 'aria-label', function () { return T('Close {title}', { title: titleFn() }); });
         dialog.appendChild(closeBtn);
         overlay.addEventListener('click', function (ev) {
           if (ev.target === overlay) { closeTop(); if (actions.onOverlayClosed) actions.onOverlayClosed(name); }
@@ -95,7 +103,7 @@
       overlay.appendChild(dialog);
       buildFn(body, dialog);
       if (!opts.noEscape && name === 'help') {
-        body.appendChild(button('Back', 'btn btn-primary', function () { closeTop(); if (actions.onOverlayClosed) actions.onOverlayClosed(name); }));
+        body.appendChild(button(L('Back'), 'btn btn-primary', function () { closeTop(); if (actions.onOverlayClosed) actions.onOverlayClosed(name); }));
       }
       screensEl.appendChild(overlay);
       openStack.push(overlay);
@@ -125,41 +133,39 @@
       openScreen('title', function (body) {
         var hero = el('div', 'title-hero');
         hero.appendChild(el('div', 'title-wordmark', 'Open Cells'));
-        hero.appendChild(el('p', 'title-tag', 'A brass-and-slate card puzzle. Four cells. Fifty-two cards. No hidden information.'));
+        hero.appendChild(el('p', 'title-tag', L('A brass-and-slate card puzzle. Four cells. Fifty-two cards. No hidden information.')));
         body.appendChild(hero);
 
-        var play = button(data.hasSnapshot ? 'Continue' : 'Play', 'btn btn-primary btn-play', function () {
+        var play = button(data.hasSnapshot ? L('Continue') : L('Play'), 'btn btn-primary btn-play', function () {
           closeAll(); actions.onPlay();
         });
         body.appendChild(play);
 
         var row = el('div', 'title-row');
-        row.appendChild(button('Daily Deal', 'btn', function () { closeAll(); actions.onDaily(); }));
-        row.appendChild(button('Journey', 'btn', function () { showJourney(data); }));
-        row.appendChild(button('Modes', 'btn', function () { showModes(data); }));
+        row.appendChild(button(L('Daily Deal'), 'btn', function () { closeAll(); actions.onDaily(); }));
+        row.appendChild(button(L('Journey'), 'btn', function () { showJourney(data); }));
+        row.appendChild(button(L('Modes'), 'btn', function () { showModes(data); }));
         body.appendChild(row);
 
         var row2 = el('div', 'title-row title-row-quiet');
-        row2.appendChild(button('Learn', 'btn btn-quiet', function () { showLearn(data); }));
-        row2.appendChild(button('Scores', 'btn btn-quiet', function () { showBoards(); }));
-        row2.appendChild(button('Settings', 'btn btn-quiet', function () { showSettings(); }));
-        row2.appendChild(button('Help', 'btn btn-quiet', function () { showHelp(); }));
+        row2.appendChild(button(L('Learn'), 'btn btn-quiet', function () { showLearn(data); }));
+        row2.appendChild(button(L('Scores'), 'btn btn-quiet', function () { showBoards(); }));
+        row2.appendChild(button(L('Settings'), 'btn btn-quiet', function () { showSettings(); }));
+        row2.appendChild(button(L('Help'), 'btn btn-quiet', function () { showHelp(); }));
         body.appendChild(row2);
 
         // StarHermit account: sign-in only where the platform offers it,
         // invite only when signed in.
         var acct = data.account || {};
         if (acct.signIn || acct.invite) {
-          var tr = global.OCGfx.strings(global.navigator && navigator.language);
           var row3 = el('div', 'title-row title-row-quiet title-account');
-          row3.lang = global.OCGfx.pickLocale(global.navigator && navigator.language);
           if (acct.signIn) {
-            var si = button(tr('sh_signIn'), 'btn', function () { actions.onSignIn(); });
+            var si = button(function () { return gfxT()('sh_signIn'); }, 'btn', function () { actions.onSignIn(); });
             si.id = 'btn-sh-sign-in';
             row3.appendChild(si);
           }
           if (acct.invite) {
-            var inv = button(tr('sh_invite'), 'btn', function () { actions.onInvite(); });
+            var inv = button(function () { return gfxT()('sh_invite'); }, 'btn', function () { actions.onInvite(); });
             inv.id = 'btn-sh-invite';
             row3.appendChild(inv);
           }
@@ -167,22 +173,24 @@
         }
 
         if (data.journeyDone != null) {
-          body.appendChild(el('p', 'title-progress',
-            'Journey: ' + data.journeyDone + ' of ' + C.JOURNEY.length + ' stages · Daily streak: ' + data.dailyStreak));
+          body.appendChild(el('p', 'title-progress', L('Journey: {done} of {total} stages · Daily streak: {streak}',
+            { done: data.journeyDone, total: C.JOURNEY.length, streak: data.dailyStreak })));
         }
-        body.appendChild(el('p', 'title-clock', 'Daily deal: ' + data.dailyId + ' · next in ' + fmtDuration(data.msToNextDaily)));
+        body.appendChild(el('p', 'title-clock', function () {
+          return T('Daily deal: {date} · next in {wait}', { date: data.dailyId, wait: fmtDuration(data.msToNextDaily) });
+        }));
       }, { title: 'Open Cells' });
     }
 
     // ------------------------------------------------------------ modes
 
     var MODE_CARDS = [
-      { id: 'learn', title: 'Learn', desc: 'Six short lessons. One rule at a time; you perform each move.', duration: '2 min each', ranked: false },
-      { id: 'journey', title: 'Journey', desc: 'Forty authored stages. New constraints arrive one at a time, with mastery checks.', duration: '5–10 min', ranked: true },
-      { id: 'daily', title: 'Daily', desc: 'One shared deal per UTC day. Same seed for everyone.', duration: '~8 min', ranked: true },
-      { id: 'practice', title: 'Practice', desc: 'Pick a difficulty. Free undo, restart any time, never ranked.', duration: 'any', ranked: false },
-      { id: 'challenge', title: 'Challenge', desc: 'Constrained deals: move limits, clocks, fewer cells.', duration: '5–10 min', ranked: true },
-      { id: 'chase', title: 'Score Chase', desc: 'Seeded deals compared on the boards. Validate your replay, climb the list.', duration: '~8 min', ranked: true }
+      { id: 'learn', title: I.N('Learn'), desc: I.N('Six short lessons. One rule at a time; you perform each move.'), duration: I.N('2 min each'), ranked: false },
+      { id: 'journey', title: I.N('Journey'), desc: I.N('Forty authored stages. New constraints arrive one at a time, with mastery checks.'), duration: I.N('5–10 min'), ranked: true },
+      { id: 'daily', title: I.N('Daily'), desc: I.N('One shared deal per UTC day. Same seed for everyone.'), duration: I.N('~8 min'), ranked: true },
+      { id: 'practice', title: I.N('Practice'), desc: I.N('Pick a difficulty. Free undo, restart any time, never ranked.'), duration: I.N('any length'), ranked: false },
+      { id: 'challenge', title: I.N('Challenge'), desc: I.N('Constrained deals: move limits, clocks, fewer cells.'), duration: I.N('5–10 min'), ranked: true },
+      { id: 'chase', title: I.N('Score Chase'), desc: I.N('Seeded deals compared on the boards. Validate your replay, climb the list.'), duration: I.N('~8 min'), ranked: true }
     ];
 
     function showModes(data) {
@@ -190,25 +198,25 @@
         var grid = el('div', 'mode-grid');
         MODE_CARDS.forEach(function (m) {
           var card = el('div', 'mode-card');
-          card.appendChild(el('h3', null, m.title));
-          card.appendChild(el('p', null, m.desc));
-          var meta = el('p', 'mode-meta', m.duration + ' · ' + (m.ranked ? 'Ranked' : 'Unranked'));
+          card.appendChild(el('h3', null, L(m.title)));
+          card.appendChild(el('p', null, L(m.desc)));
+          var meta = el('p', 'mode-meta', function () { return T(m.duration) + ' · ' + (m.ranked ? T('Ranked') : T('Unranked')); });
           card.appendChild(meta);
-          card.appendChild(button('Open', 'btn btn-primary', function () {
+          card.appendChild(button(L('Open'), 'btn btn-primary', function () {
             closeAll();
             actions.onMode(m.id);
           }));
           grid.appendChild(card);
         });
         body.appendChild(grid);
-      }, { title: 'Choose a mode', wide: true });
+      }, { title: L('Choose a mode'), wide: true });
     }
 
     // ------------------------------------------------------------ journey
 
     function showJourney(data) {
       openScreen('journey', function (body) {
-        body.appendChild(el('p', null, 'Complete a stage to unlock the next. Mastery stages combine everything before them.'));
+        body.appendChild(el('p', null, L('Complete a stage to unlock the next. Mastery stages combine everything before them.')));
         var grid = el('div', 'journey-grid');
         C.JOURNEY.forEach(function (st) {
           var rec = data.journey[st.id];
@@ -217,118 +225,125 @@
           cell.disabled = !unlocked;
           var stars = rec ? '★'.repeat(rec.stars) + '☆'.repeat(3 - rec.stars) : '';
           cell.innerHTML = '<span class="journey-n">' + st.n + '</span><span class="journey-stars">' + stars + '</span>';
-          cell.setAttribute('aria-label', 'Stage ' + st.n + ': ' + st.title + (rec ? ', completed, ' + rec.stars + ' of 3 stars' : unlocked ? ', unlocked' : ', locked'));
+          I.bindAttr(cell, 'aria-label', function () {
+            return T('Stage {n}: {title}', { n: st.n, title: T(st.title) }) + (rec ? T(', completed, {stars} of 3 stars', { stars: rec.stars }) : unlocked ? T(', unlocked') : T(', locked'));
+          });
           if (unlocked) {
             cell.addEventListener('click', function () { showStageSetup(st); });
           }
           grid.appendChild(cell);
         });
         body.appendChild(grid);
-      }, { title: 'Journey', wide: true });
+      }, { title: L('Journey'), wide: true });
     }
 
     function constraintSummary(cons) {
       var parts = [];
-      if (cons.cellsAvailable < 4) parts.push(cons.cellsAvailable + ' cells');
-      if (cons.moveLimit) parts.push('≤ ' + cons.moveLimit + ' moves');
+      if (cons.cellsAvailable < 4) parts.push(T('{n} cells', { n: cons.cellsAvailable }));
+      if (cons.moveLimit) parts.push(T('≤ {n} moves', { n: cons.moveLimit }));
       if (cons.timeLimitMs) parts.push('≤ ' + fmtTime(cons.timeLimitMs));
-      if (cons.noAuto) parts.push('no auto-collect');
-      return parts.length ? parts.join(' · ') : 'standard rules';
+      if (cons.noAuto) parts.push(T('no auto-collect'));
+      return parts.length ? parts.join(' · ') : T('standard rules');
     }
+
+    var FLAG_TEXT = { cells: I.N('cells'), 'empty-columns': I.N('empty columns') };
 
     function showStageSetup(st) {
       openScreen('stage-setup', function (body, dialog) {
-        body.appendChild(el('p', null, 'Difficulty ' + '●'.repeat(st.difficulty) + '○'.repeat(5 - st.difficulty)));
-        body.appendChild(el('p', null, 'Rules: ' + constraintSummary(st.constraints)));
-        body.appendChild(el('p', null, 'Par: ' + st.par.moves + ' moves, ' + fmtTime(st.par.timeMs) + '. Seed ' + st.seed + '. Ranked.'));
-        if (st.tutorialFlags.length) body.appendChild(el('p', null, 'Concept focus: ' + st.tutorialFlags.join(', ')));
-        body.appendChild(button('Begin stage', 'btn btn-primary', function () {
+        body.appendChild(el('p', null, function () { return T('Difficulty {dots}', { dots: '●'.repeat(st.difficulty) + '○'.repeat(5 - st.difficulty) }); }));
+        body.appendChild(el('p', null, function () { return T('Rules: {rules}', { rules: constraintSummary(st.constraints) }); }));
+        body.appendChild(el('p', null, L('Par: {moves} moves, {time}. Seed {seed}. Ranked.', { moves: st.par.moves, time: fmtTime(st.par.timeMs), seed: st.seed })));
+        if (st.tutorialFlags.length) body.appendChild(el('p', null, function () {
+          return T('Concept focus: {topics}', { topics: st.tutorialFlags.map(function (f) { return T(FLAG_TEXT[f] || f); }).join(', ') });
+        }));
+        body.appendChild(button(L('Begin stage'), 'btn btn-primary', function () {
           closeAll(); actions.onStartJourney(st);
         }));
-        body.appendChild(button('Back', 'btn btn-quiet', function () { closeTop(); }));
-      }, { title: 'Stage ' + st.n + ' — ' + st.title });
+        body.appendChild(button(L('Back'), 'btn btn-quiet', function () { closeTop(); }));
+      }, { title: function () { return T('Stage {n} — {title}', { n: st.n, title: T(st.title) }); } });
     }
 
     // ------------------------------------------------------------ learn
 
     function showLearn(data) {
       openScreen('learn', function (body) {
-        body.appendChild(el('p', null, 'Lessons ask you to perform each rule yourself. Progress is saved.'));
+        body.appendChild(el('p', null, L('Lessons ask you to perform each rule yourself. Progress is saved.')));
         C.LESSONS.forEach(function (ls, i) {
           var done = data.lessons[ls.id];
           var rowEl = el('div', 'lesson-row');
           rowEl.appendChild(el('span', 'lesson-status', done ? '✓' : (i + 1) + '.'));
           var txt = el('div', 'lesson-text');
-          txt.appendChild(el('strong', null, ls.title));
-          txt.appendChild(el('p', null, ls.intro));
+          txt.appendChild(el('strong', null, L(ls.title)));
+          txt.appendChild(el('p', null, L(ls.intro)));
           rowEl.appendChild(txt);
-          rowEl.appendChild(button(done ? 'Replay' : 'Start', 'btn', function () {
+          rowEl.appendChild(button(done ? L('Replay') : L('Start'), 'btn', function () {
             closeAll(); actions.onStartLesson(ls);
           }));
           body.appendChild(rowEl);
         });
-      }, { title: 'Learn', wide: true });
+      }, { title: L('Learn'), wide: true });
     }
 
     // ------------------------------------------------------------ setup screens
 
     function showPracticeSetup() {
       openScreen('practice-setup', function (body) {
-        body.appendChild(el('p', null, 'Practice is never ranked. Undo is free; restart any time.'));
+        body.appendChild(el('p', null, L('Practice is never ranked. Undo is free; restart any time.')));
         C.PRACTICE_DIFFICULTIES.forEach(function (d) {
           var rowEl = el('div', 'lesson-row');
           var txt = el('div', 'lesson-text');
-          txt.appendChild(el('strong', null, d.title));
-          txt.appendChild(el('p', null, d.description + ' (' + constraintSummary(d.constraints) + ')'));
+          txt.appendChild(el('strong', null, L(d.title)));
+          txt.appendChild(el('p', null, function () { return T(d.description) + ' (' + constraintSummary(d.constraints) + ')'; }));
           rowEl.appendChild(txt);
-          rowEl.appendChild(button('Deal', 'btn btn-primary', function () {
+          rowEl.appendChild(button(L('Deal'), 'btn btn-primary', function () {
             closeAll(); actions.onStartPractice(d);
           }));
           body.appendChild(rowEl);
         });
-      }, { title: 'Practice' });
+      }, { title: L('Practice') });
     }
 
     function showChallengeSetup() {
       openScreen('challenge-setup', function (body) {
-        body.appendChild(el('p', null, 'Constrained deals. Your score goes to the challenge boards.'));
+        body.appendChild(el('p', null, L('Constrained deals. Your score goes to the challenge boards.')));
         C.CHALLENGES.forEach(function (ch) {
           var rowEl = el('div', 'lesson-row');
           var txt = el('div', 'lesson-text');
-          txt.appendChild(el('strong', null, ch.title + '  ' + '●'.repeat(ch.difficulty)));
-          txt.appendChild(el('p', null, ch.description + ' (' + constraintSummary(ch.constraints) + ')'));
+          txt.appendChild(el('strong', null, function () { return T(ch.title) + '  ' + '●'.repeat(ch.difficulty); }));
+          txt.appendChild(el('p', null, function () { return T(ch.description) + ' (' + constraintSummary(ch.constraints) + ')'; }));
           rowEl.appendChild(txt);
-          rowEl.appendChild(button('Play', 'btn btn-primary', function () {
+          rowEl.appendChild(button(L('Play'), 'btn btn-primary', function () {
             closeAll(); actions.onStartChallenge(ch);
           }));
           body.appendChild(rowEl);
         });
-      }, { title: 'Challenge', wide: true });
+      }, { title: L('Challenge'), wide: true });
     }
 
     function showDailySetup(daily, clockMode) {
       openScreen('daily-setup', function (body) {
-        body.appendChild(el('p', null, 'Deal ' + daily.date + ' · seed ' + daily.seed + ' · standard rules · par ' + daily.par.moves + ' moves.'));
+        body.appendChild(el('p', null, L('Deal {date} · seed {seed} · standard rules · par {moves} moves.', { date: daily.date, seed: daily.seed, moves: daily.par.moves })));
         body.appendChild(el('p', null, clockMode === 'synced'
-          ? 'Clock synchronized with StarHermit.'
-          : 'Using this device’s clock for the daily boundary.'));
-        body.appendChild(el('p', null, 'One result per day counts for your streak. Ranked.'));
-        body.appendChild(button('Play today’s deal', 'btn btn-primary', function () {
+          ? L('Clock synchronized with StarHermit.')
+          : L('Using this device’s clock for the daily boundary.')));
+        body.appendChild(el('p', null, L('One result per day counts for your streak. Ranked.')));
+        body.appendChild(button(L('Play today’s deal'), 'btn btn-primary', function () {
           closeAll(); actions.onStartDaily(daily);
         }));
-      }, { title: 'Daily Deal' });
+      }, { title: L('Daily Deal') });
     }
 
     function showChaseSetup() {
       openScreen('chase-setup', function (body) {
-        body.appendChild(el('p', null, 'Enter a seed (or roll one). Everyone with the same seed plays the same deal; results go to the seed board.'));
+        body.appendChild(el('p', null, L('Enter a seed (or roll one). Everyone with the same seed plays the same deal; results go to the seed board.')));
         var form = el('form', 'chase-form');
         var input = el('input');
-        input.type = 'text'; input.name = 'seed'; input.placeholder = 'e.g. brass-owl-42';
-        input.setAttribute('aria-label', 'Challenge seed');
+        input.type = 'text'; input.name = 'seed';
+        I.bindAttr(input, 'placeholder', L('e.g. {seed}', { seed: 'brass-owl-42' }));
+        I.bindAttr(input, 'aria-label', L('Challenge seed'));
         input.maxLength = 40;
         form.appendChild(input);
-        var submitBtn = button('Play seed', 'btn btn-primary', null);
+        var submitBtn = button(L('Play seed'), 'btn btn-primary', null);
         submitBtn.type = 'submit';
         form.appendChild(submitBtn);
         form.addEventListener('submit', function (ev) {
@@ -337,28 +352,28 @@
           closeAll(); actions.onStartChase(v);
         });
         body.appendChild(form);
-        body.appendChild(button('Roll a random seed', 'btn', function () {
+        body.appendChild(button(L('Roll a random seed'), 'btn', function () {
           closeAll(); actions.onStartChase('roll-' + Math.floor(Math.random() * 1e9).toString(36));
         }));
-      }, { title: 'Score Chase' });
+      }, { title: L('Score Chase') });
     }
 
     // ------------------------------------------------------------ pause
 
     function showPause() {
       openScreen('pause', function (body) {
-        body.appendChild(button('Resume', 'btn btn-primary', function () {
+        body.appendChild(button(L('Resume'), 'btn btn-primary', function () {
           closeTop(); actions.onResume();
         }));
-        body.appendChild(button('Restart deal', 'btn', function () {
+        body.appendChild(button(L('Restart deal'), 'btn', function () {
           closeAll(); actions.onRetry();
         }));
-        body.appendChild(button('Settings', 'btn', function () { showSettings(); }));
-        body.appendChild(button('Help', 'btn', function () { showHelp(); }));
-        body.appendChild(button('Leave deal', 'btn btn-quiet', function () {
+        body.appendChild(button(L('Settings'), 'btn', function () { showSettings(); }));
+        body.appendChild(button(L('Help'), 'btn', function () { showHelp(); }));
+        body.appendChild(button(L('Leave deal'), 'btn btn-quiet', function () {
           closeAll(); actions.onLeave();
         }));
-      }, { title: 'Paused' });
+      }, { title: L('Paused') });
     }
 
     // ------------------------------------------------------------ settings
@@ -368,7 +383,7 @@
       openScreen('settings', function (body, dialog) {
         function group(title) {
           var g = el('section', 'settings-group');
-          g.appendChild(el('h3', null, title));
+          g.appendChild(el('h3', null, L(title)));
           body.appendChild(g);
           return g;
         }
@@ -383,18 +398,18 @@
           });
           wrap.appendChild(input);
           var t = el('span', null);
-          t.appendChild(el('strong', null, label));
-          if (desc) t.appendChild(el('small', null, desc));
+          t.appendChild(el('strong', null, L(label)));
+          if (desc) t.appendChild(el('small', null, L(desc)));
           wrap.appendChild(t);
           parent.appendChild(wrap);
         }
         function slider(parent, bus, label) {
           var wrap = el('label', 'setting-slider');
-          wrap.appendChild(el('span', null, label));
+          wrap.appendChild(el('span', null, L(label)));
           var input = el('input');
           input.type = 'range'; input.min = '0'; input.max = '1'; input.step = '0.05';
           input.value = String(settings.volume[bus]);
-          input.setAttribute('aria-label', label + ' volume');
+          I.bindAttr(input, 'aria-label', L('{bus} volume', function () { return { bus: T(label) }; }));
           input.addEventListener('input', function () {
             settings = P.updateSettings({ volume: { [bus]: parseFloat(input.value) } });
             actions.onSettingsChanged(settings);
@@ -404,11 +419,11 @@
         }
         function select(parent, key, label, options) {
           var wrap = el('label', 'setting-select');
-          wrap.appendChild(el('span', null, label));
+          wrap.appendChild(el('span', null, L(label)));
           var sel = el('select');
-          sel.setAttribute('aria-label', label);
+          I.bindAttr(sel, 'aria-label', L(label));
           options.forEach(function (o) {
-            var opt = el('option', null, o.label);
+            var opt = el('option', null, L(o.label));
             opt.value = o.value;
             if (settings[key] === o.value) opt.selected = true;
             sel.appendChild(opt);
@@ -421,58 +436,62 @@
           parent.appendChild(wrap);
         }
 
-        var ga = group('Audio');
-        slider(ga, 'music', 'Music');
-        slider(ga, 'effects', 'Effects');
-        slider(ga, 'ambience', 'Ambience');
-        slider(ga, 'voice', 'Interface cues');
-        toggle(ga, 'muted', 'Mute all', 'Silence every bus at once.');
+        var ga = group(I.N('Audio'));
+        slider(ga, 'music', I.N('Music'));
+        slider(ga, 'effects', I.N('Effects'));
+        slider(ga, 'ambience', I.N('Ambience'));
+        slider(ga, 'voice', I.N('Interface cues'));
+        toggle(ga, 'muted', I.N('Mute all'), I.N('Silence every bus at once.'));
 
-        var gg = group('Graphics');
-        select(gg, 'theme', 'Theme', C.THEMES.map(function (t) { return { value: t.id, label: t.name }; }));
-        toggle(gg, 'reducedMotion', 'Reduced motion', 'Removes camera moves, shake, particles, and large scaling.');
+        var gg = group(I.N('Graphics'));
+        select(gg, 'theme', I.N('Theme'), C.THEMES.map(function (t) { return { value: t.id, label: t.name }; }));
+        toggle(gg, 'reducedMotion', I.N('Reduced motion'), I.N('Removes camera moves, shake, particles, and large scaling.'));
         buildGraphics(gg);
 
-        var gx = group('Accessibility');
-        toggle(gx, 'highContrast', 'High contrast', 'Stronger outlines and text contrast.');
-        toggle(gx, 'largerText', 'Larger text', 'Increases UI text size.');
-        select(gx, 'colorPalette', 'Suit color palette', [
-          { value: 'standard', label: 'Standard red/black' },
-          { value: 'deuteranopia', label: 'Deuteranopia-safe (blue/orange)' },
-          { value: 'tritanopia', label: 'Tritanopia-safe (blue/red)' }
+        var gx = group(I.N('Accessibility'));
+        toggle(gx, 'highContrast', I.N('High contrast'), I.N('Stronger outlines and text contrast.'));
+        toggle(gx, 'largerText', I.N('Larger text'), I.N('Increases UI text size.'));
+        select(gx, 'colorPalette', I.N('Suit color palette'), [
+          { value: 'standard', label: I.N('Standard red/black') },
+          { value: 'deuteranopia', label: I.N('Deuteranopia-safe (blue/orange)') },
+          { value: 'tritanopia', label: I.N('Tritanopia-safe (blue/red)') }
         ]);
-        toggle(gx, 'leftHanded', 'Left-handed layout', 'Mirrors the action tray.');
-        toggle(gx, 'holdToDrag', 'Hold to drag', 'Require holding a card to drag; tap toggles selection otherwise.');
-        toggle(gx, 'haptics', 'Haptics', 'Vibration feedback on supporting devices.');
-        toggle(gx, 'htmlMode', 'HTML board', 'Use the semantic HTML board instead of the 3D scene.');
+        toggle(gx, 'leftHanded', I.N('Left-handed layout'), I.N('Mirrors the action tray.'));
+        toggle(gx, 'holdToDrag', I.N('Hold to drag'), I.N('Require holding a card to drag; tap toggles selection otherwise.'));
+        toggle(gx, 'haptics', I.N('Haptics'), I.N('Vibration feedback on supporting devices.'));
+        toggle(gx, 'htmlMode', I.N('HTML board'), I.N('Use the semantic HTML board instead of the 3D scene.'));
 
-        var gc = group('Controls');
+        var gc = group(I.N('Controls'));
         var k = actions.keyText;
-        var kb = el('p', null, 'Keyboard: ' + [k('navLeft'), k('navRight'), k('navUp'), k('navDown')].join(' ') + ' navigate, Enter/Space select or place, ' +
-          k('cancel') + ' cancel/pause, ' + k('pause') + ' pause, ' + k('undo') + ' undo, ' + k('hint') + ' hint, ' + k('auto') + ' collect, ' +
-          k('restart') + ' restart, ' + k('cameraReset') + ' camera reset.');
+        var kb = el('p', null, function () {
+          return T('Keyboard: {nav} navigate, Enter/Space select or place, {cancel} cancel/pause, {pause} pause, {undo} undo, {hint} hint, {auto} collect, {restart} restart, {camera} camera reset.', {
+            nav: [k('navLeft'), k('navRight'), k('navUp'), k('navDown')].join(' '), cancel: k('cancel'), pause: k('pause'), undo: k('undo'),
+            hint: k('hint'), auto: k('auto'), restart: k('restart'), camera: k('cameraReset')
+          });
+        });
         gc.appendChild(kb);
-        var gp = el('p', null, 'Gamepad: stick or D-pad navigates, A confirms, B cancels, Start pauses.');
+        var gp = el('p', null, L('Gamepad: stick or D-pad navigates, A confirms, B cancels, Start pauses.'));
         gc.appendChild(gp);
 
-        var gd = group('Data');
-        var wipe = button('Erase local progress', 'btn btn-quiet', function () {
-          if (global.confirm('Erase all local progress, scores, and settings?')) actions.onWipe();
+        var gd = group(I.N('Data'));
+        var wipe = button(L('Erase local progress'), 'btn btn-quiet', function () {
+          if (global.confirm(T('Erase all local progress, scores, and settings?'))) actions.onWipe();
         });
         gd.appendChild(wipe);
 
-        body.appendChild(button('Done', 'btn btn-primary', function () { closeTop(); }));
-      }, { title: 'Settings', wide: true });
+        body.appendChild(button(L('Done'), 'btn btn-primary', function () { closeTop(); }));
+      }, { title: L('Settings'), wide: true });
     }
 
     // ------------------------------------------------------------ graphics
 
     // Graphics quality controls (preset, render scale, per-effect overrides,
     // adaptive resolution, frame-rate readout, cost summary). Strings come
-    // from OCGfx in the browser's language; ids are stable for tests.
+    // from OCGfx in the game language; ids are stable for tests. A language
+    // change re-renders only this box.
     function buildGraphics(parent) {
       var G = global.OCGfx;
-      var t = G.strings(global.navigator && navigator.language);
+      var t = G.strings(I.lang());
       var box = el('div', 'gfx-settings');
       box.id = 'gfx-settings';
       parent.appendChild(box);
@@ -601,9 +620,15 @@
       }
 
       render();
+      var offLang = I.onChange(function () {
+        if (!box.isConnected) { offLang(); return; }
+        t = G.strings(I.lang());
+        var focused = document.activeElement && box.contains(document.activeElement) ? document.activeElement.id : null;
+        render(focused);
+      });
       // Keep pixels / fps / post status current while the panel is open.
       var timer = setInterval(function () {
-        if (!box.isConnected) { clearInterval(timer); return; }
+        if (!box.isConnected) { clearInterval(timer); offLang(); return; }
         refreshSummary();
       }, 1000);
     }
@@ -613,28 +638,31 @@
     function showHelp() {
       openScreen('help', function (body) {
         var cards = [
-          { t: 'Objective', d: 'Move all 52 cards to the four foundations — one per suit, ace up to king.' },
-          { t: 'Tableau', d: 'Eight columns build downward in alternating colors. Only ordered runs travel together.' },
-          { t: 'Cells', d: 'Four temporary cells, one card each. They are your working room — empty them again soon.' },
-          { t: 'Supermoves', d: 'Run length you may move = (free cells + 1) × 2^(empty columns). Free space is power.' },
-          { t: 'Empty columns', d: 'Any card or run may take an empty column. They double your moving capacity.' },
-          { t: 'Collect', d: 'Cards that can never be needed again may be swept home automatically with Collect (A).' },
-          { t: 'Scoring', d: 'Completion first, then efficiency: fewer moves and a calm clock beat haste. Invalid attempts cost a little; undos cost a little.' }
+          { t: I.N('Objective'), d: I.N('Move all 52 cards to the four foundations — one per suit, ace up to king.') },
+          { t: I.N('Tableau'), d: I.N('Eight columns build downward in alternating colors. Only ordered runs travel together.') },
+          { t: I.N('Cells'), d: I.N('Four temporary cells, one card each. They are your working room — empty them again soon.') },
+          { t: I.N('Supermoves'), d: I.N('Run length you may move = (free cells + 1) × 2^(empty columns). Free space is power.') },
+          { t: I.N('Empty columns'), d: I.N('Any card or run may take an empty column. They double your moving capacity.') },
+          { t: I.N('Collect'), d: I.N('Cards that can never be needed again may be swept home automatically with Collect (A).') },
+          { t: I.N('Scoring'), d: I.N('Completion first, then efficiency: fewer moves and a calm clock beat haste. Invalid attempts cost a little; undos cost a little.') }
         ];
         var grid = el('div', 'help-grid');
         cards.forEach(function (c) {
           var card = el('div', 'help-card');
-          card.appendChild(el('h3', null, c.t));
-          card.appendChild(el('p', null, c.d));
+          card.appendChild(el('h3', null, L(c.t)));
+          card.appendChild(el('p', null, L(c.d)));
           grid.appendChild(card);
         });
         body.appendChild(grid);
         var k = actions.keyText;
-        var kb = el('p', null, 'Controls — ' + [k('navLeft'), k('navRight'), k('navUp'), k('navDown')].join(' ') + ' navigate, Enter/Space select or place, ' +
-          k('cancel') + ' cancels, ' + k('undo') + ' undo, ' + k('hint') + ' hint, ' + k('auto') + ' collect, ' + k('restart') +
-          ' restart (with confirmation), ' + k('cameraReset') + ' camera reset.');
+        var kb = el('p', null, function () {
+          return T('Controls — {nav} navigate, Enter/Space select or place, {cancel} cancels, {undo} undo, {hint} hint, {auto} collect, {restart} restart (with confirmation), {camera} camera reset.', {
+            nav: [k('navLeft'), k('navRight'), k('navUp'), k('navDown')].join(' '), cancel: k('cancel'), undo: k('undo'),
+            hint: k('hint'), auto: k('auto'), restart: k('restart'), camera: k('cameraReset')
+          });
+        });
         body.appendChild(kb);
-      }, { title: 'How to play', wide: true });
+      }, { title: L('How to play'), wide: true });
     }
 
     // ------------------------------------------------------------ boards & achievements
@@ -644,58 +672,60 @@
         var hostedSlot = el('div');
         body.appendChild(hostedSlot);
         if (P.apiAvailable()) {
-          hostedSlot.appendChild(el('h3', null, 'StarHermit leaderboard'));
-          var note = el('p', 'board-note', 'Loading…');
+          hostedSlot.appendChild(el('h3', null, L('StarHermit leaderboard')));
+          var note = el('p', 'board-note', L('Loading…'));
           hostedSlot.appendChild(note);
           P.getHostedLeaderboard().then(function (lb) {
-            if (!lb) { note.textContent = 'Global leaderboard unavailable — local records below.'; return; }
+            if (!lb) { I.bindText(note, L('Global leaderboard unavailable — local records below.')); return; }
             if (lb.me && (lb.me.rank != null || lb.me.score != null)) {
-              note.textContent = 'Your best: '
-                + (lb.me.score != null ? lb.me.score + (lb.me.rank != null ? ' · rank ' + lb.me.rank : '') : 'rank ' + lb.me.rank)
-                + '.';
+              I.bindText(note, function () {
+                return lb.me.score == null ? T('Your best: rank {rank}.', { rank: lb.me.rank })
+                  : lb.me.rank != null ? T('Your best: {score} · rank {rank}.', { score: lb.me.score, rank: lb.me.rank })
+                  : T('Your best: {score}.', { score: lb.me.score });
+              });
             }
             if (!lb.entries.length) {
-              if (!lb.me) note.textContent = 'No global entries yet — local records below.';
+              if (!lb.me) I.bindText(note, L('No global entries yet — local records below.'));
               return;
             }
             hostedSlot.appendChild(hostedTable(lb.entries));
           });
         }
         var names = ['daily', 'journey', 'chase', 'challenge'];
-        var labels = { daily: 'Daily board', journey: 'Journey board', chase: 'Score chase', challenge: 'Challenge board' };
+        var labels = { daily: I.N('Daily board'), journey: I.N('Journey board'), chase: I.N('Score chase'), challenge: I.N('Challenge board') };
         names.forEach(function (boardName) {
-          body.appendChild(el('h3', null, labels[boardName]));
+          body.appendChild(el('h3', null, L(labels[boardName])));
           body.appendChild(boardTable(P.getBoard(boardName)));
         });
-        body.appendChild(el('h3', null, 'Practice (casual, unvalidated)'));
-        body.appendChild(el('p', 'board-note', 'This board is local and unvalidated — casual only.'));
+        body.appendChild(el('h3', null, L('Practice (casual, unvalidated)')));
+        body.appendChild(el('p', 'board-note', L('This board is local and unvalidated — casual only.')));
         body.appendChild(boardTable(P.getBoard('practice-local')));
-        body.appendChild(el('h3', null, 'Achievements'));
+        body.appendChild(el('h3', null, L('Achievements')));
         var save = P.loadSave().doc;
         var ul = el('ul', 'ach-list');
         C.ACHIEVEMENTS.forEach(function (a) {
           var unlocked = save.achievements[a.key];
           var li = el('li', unlocked ? 'ach unlocked' : 'ach');
-          li.appendChild(el('strong', null, (unlocked ? '✓ ' : '') + a.title));
-          li.appendChild(el('span', null, ' — ' + a.description));
+          li.appendChild(el('strong', null, function () { return (unlocked ? '✓ ' : '') + T(a.title); }));
+          li.appendChild(el('span', null, function () { return ' — ' + T(a.description); }));
           ul.appendChild(li);
         });
         body.appendChild(ul);
-      }, { title: 'Scores & achievements', wide: true });
+      }, { title: L('Scores & achievements'), wide: true });
     }
 
     function hostedTable(entries) {
       var table = el('table', 'board-table');
       var thead = el('thead');
       var hr = el('tr');
-      ['#', 'Player', 'Score'].forEach(function (h) { hr.appendChild(el('th', null, h)); });
+      ['#', I.N('Player'), I.N('Score')].forEach(function (h) { hr.appendChild(el('th', null, L(h))); });
       thead.appendChild(hr);
       table.appendChild(thead);
       var tbody = el('tbody');
       entries.forEach(function (e, i) {
         var tr = el('tr');
         tr.appendChild(el('td', null, String(e.rank != null ? e.rank : i + 1)));
-        tr.appendChild(el('td', null, e.name || 'Player'));
+        tr.appendChild(el('td', null, e.name || L('Player')));
         tr.appendChild(el('td', null, String(e.score != null ? e.score : '')));
         tbody.appendChild(tr);
       });
@@ -704,11 +734,11 @@
     }
 
     function boardTable(entries) {
-      if (!entries.length) return el('p', 'board-empty', 'No results yet.');
+      if (!entries.length) return el('p', 'board-empty', L('No results yet.'));
       var table = el('table', 'board-table');
       var thead = el('thead');
       var hr = el('tr');
-      ['#', 'Score', 'Deal', 'Moves', 'Time'].forEach(function (h) { hr.appendChild(el('th', null, h)); });
+      ['#', I.N('Score'), I.N('Deal'), I.N('Moves'), I.N('Time')].forEach(function (h) { hr.appendChild(el('th', null, L(h))); });
       thead.appendChild(hr);
       table.appendChild(thead);
       var tbody = el('tbody');
@@ -731,47 +761,48 @@
       // data: { status, reason, score, moves, invalid, undos, elapsedMs, dealId,
       //         ranked, journeyStage, stars, achievements, lesson, onNextLabel }
       openScreen('results', function (body) {
-        var headline = data.status === 'won' ? 'Deal cleared.' :
-          data.reason === 'conceded' ? 'Deal conceded.' :
-          data.reason === 'move-limit-exceeded' ? 'Out of moves.' :
-          data.reason === 'time-limit-exceeded' ? 'Out of time.' : 'Deal over.';
-        var h = el('p', 'results-headline', headline);
+        var headlineKey = data.status === 'won' ? I.N('Deal cleared.') :
+          data.reason === 'conceded' ? I.N('Deal conceded.') :
+          data.reason === 'move-limit-exceeded' ? I.N('Out of moves.') :
+          data.reason === 'time-limit-exceeded' ? I.N('Out of time.') : I.N('Deal over.');
+        var h = el('p', 'results-headline', L(headlineKey));
+        h.dataset.result = data.status === 'won' ? 'won' : data.reason || 'over';
         body.appendChild(h);
 
         var table = el('table', 'score-table');
         var rows = [
-          ['Cards home', data.score.completion],
-          ['Win bonus', data.score.winBonus],
-          ['Move efficiency', data.score.efficiency],
-          ['Time bonus', data.score.timeBonus],
-          ['Invalid attempts', data.score.invalidPenalty],
-          ['Undos', data.score.undoPenalty]
+          [I.N('Cards home'), data.score.completion],
+          [I.N('Win bonus'), data.score.winBonus],
+          [I.N('Move efficiency'), data.score.efficiency],
+          [I.N('Time bonus'), data.score.timeBonus],
+          [I.N('Invalid attempts'), data.score.invalidPenalty],
+          [I.N('Undos'), data.score.undoPenalty]
         ];
         rows.forEach(function (r) {
           var tr = el('tr');
-          tr.appendChild(el('td', null, r[0]));
+          tr.appendChild(el('td', null, L(r[0])));
           var td = el('td', 'score-num', (r[1] > 0 ? '+' : '') + r[1]);
           tr.appendChild(td);
           table.appendChild(tr);
         });
         var total = el('tr', 'score-total');
-        total.appendChild(el('td', null, 'Total'));
+        total.appendChild(el('td', null, L('Total')));
         total.appendChild(el('td', 'score-num', String(data.score.total)));
         table.appendChild(total);
         body.appendChild(table);
 
-        body.appendChild(el('p', 'results-meta',
-          data.moves + ' moves · ' + fmtTime(data.elapsedMs) + ' · deal ' + data.dealId +
-          (data.ranked ? ' · ranked' : ' · unranked')));
+        body.appendChild(el('p', 'results-meta', data.ranked
+          ? L('{moves} moves · {time} · deal {deal} · ranked', { moves: data.moves, time: fmtTime(data.elapsedMs), deal: data.dealId })
+          : L('{moves} moves · {time} · deal {deal} · unranked', { moves: data.moves, time: fmtTime(data.elapsedMs), deal: data.dealId })));
 
         if (data.stars) {
           body.appendChild(el('p', 'results-stars', '★'.repeat(data.stars) + '☆'.repeat(3 - data.stars)));
         }
         if (data.achievements && data.achievements.length) {
           var div = el('div', 'results-ach');
-          div.appendChild(el('h3', null, 'Achievements unlocked'));
+          div.appendChild(el('h3', null, L('Achievements unlocked')));
           data.achievements.forEach(function (a) {
-            div.appendChild(el('p', null, '✓ ' + a.title + ' — ' + a.description));
+            div.appendChild(el('p', null, function () { return '✓ ' + T(a.title) + ' — ' + T(a.description); }));
           });
           body.appendChild(div);
         }
@@ -783,13 +814,13 @@
         body.appendChild(lb);
 
         var row = el('div', 'title-row');
-        if (data.onNextLabel) row.appendChild(button(data.onNextLabel, 'btn btn-primary', function () { closeAll(); actions.onNext(); }));
-        row.appendChild(button('Retry', 'btn', function () { closeAll(); actions.onRetry(); }));
-        row.appendChild(button('Leave', 'btn btn-quiet', function () { closeAll(); actions.onLeave(); }));
+        if (data.onNextLabel) row.appendChild(button(L(data.onNextLabel), 'btn btn-primary', function () { closeAll(); actions.onNext(); }));
+        row.appendChild(button(L('Retry'), 'btn', function () { closeAll(); actions.onRetry(); }));
+        row.appendChild(button(L('Leave'), 'btn btn-quiet', function () { closeAll(); actions.onLeave(); }));
         body.appendChild(row);
 
-        announce(headline + ' Total score ' + data.score.total + '.', true);
-      }, { title: 'Results', noEscape: false });
+        announce(T(headlineKey) + ' ' + T('Total score {n}.', { n: data.score.total }), true);
+      }, { title: L('Results'), noEscape: false });
     }
 
     // ------------------------------------------------------------ HUD
@@ -843,7 +874,9 @@
       toastTimer = setTimeout(function () { t.hidden = true; }, 3200);
     }
 
+    var lastPlayer = null;
     function updatePlayer(st) {
+      lastPlayer = st;
       if (!hudEls) return;
       if (hudEls.player) {
         hudEls.player.textContent = '';
@@ -856,9 +889,9 @@
         hudEls.player.hidden = !st.name;
       }
       if (hudEls.sync) {
-        var label = st.sync === 'saving' ? 'saving…'
-          : st.sync === 'synced' ? 'cloud save ✓'
-          : st.sync === 'error' ? 'sync failed'
+        var label = st.sync === 'saving' ? T('saving…')
+          : st.sync === 'synced' ? T('cloud save ✓')
+          : st.sync === 'error' ? T('sync failed')
           : '';
         hudEls.sync.textContent = label;
         hudEls.sync.dataset.state = st.sync || '';
@@ -904,6 +937,8 @@
       bindHud: bindHud,
       updateHud: updateHud,
       updatePlayer: updatePlayer,
+      // Language changed: re-render text that is not bound (player/sync chips).
+      relabel: function () { if (lastPlayer) updatePlayer(lastPlayer); },
       toast: toast,
       applySettings: applySettings
     };
