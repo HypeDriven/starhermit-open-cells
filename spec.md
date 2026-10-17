@@ -31,7 +31,8 @@ to put a card that has nowhere to go — Open Cells is the puzzle of spending th
 | `src/session.js` | Validated commands, undo snapshots, replay envelope + `validateReplay`, hints, lesson tracking, event emission. |
 | `src/content.js` | 6 lessons, 40 journey stages, 6 challenges, 3 practice difficulties, daily derivation, 5 themes, 5 achievements. |
 | `src/render.js` | Three.js scene: procedural desk geometry, canvas-drawn card and surface textures, image-based lighting, post-processing chain, Graphics settings (`setGraphics`, `graphicsInfo`), adaptive resolution, pooled particles and dust motes, context-loss recovery, raycast intents. |
-| `src/gfx.js` | Pure graphics quality model (no three.js): presets, per-category tiers, GPU-based Auto detection, `resolve()`, `presetTier()`, `choosePreset()`, `describe()`, and the Graphics panel strings in nine locales. |
+| `src/gpu-level.js` | Shared StarHermit hardware-level module (`window.StarHermitGpu`), copied from the platform tools, never edited here. |
+| `src/gfx.js` | Pure graphics quality model (no three.js): presets, per-category tiers, hardware-level Auto detection (`detectLevel`, `presetForLevel`, `detectPreset`), per-preset `BUDGETS`/`budgetFor`/`sparkCap`, `resolve()`, `presetTier()`, `choosePreset()`, `describe()`, and the Graphics panel strings in nine locales. |
 | `vendor/three/` | `three-global.js` (ES-module view of the vendored r152 `window.THREE`) and same-revision addons (`addons/postprocessing`, `addons/shaders`, `addons/environments/RoomEnvironment.js`), loaded on demand through the import map in `index.html`. |
 | `src/board-dom.js` | The HTML board — real `<button>` cards and slots, arrow-key navigation, ARIA labels. |
 | `src/ui.js` | 14 overlay screens, focus trap and restore, HUD, live-region announcements, settings form. |
@@ -45,7 +46,7 @@ to put a card that has nowhere to go — Open Cells is the puzzle of spending th
 | `score-script.js` | StarHermit platform script (`server=score-script.js`): range-checks a finished ranked deal's total and posts it to the `high-score` leaderboard (canonical copy in the games repo's `tools/score-script.js`). |
 | `server.js` | Local dev host: static server plus legacy `/api/v1` routes the client does not call. |
 | `tools/validate.js` | Offline solver proving lessons and every shipped deal seed. |
-| `tests/` | `rules.test.js`, `session.test.js`, `gfx.test.js` (37 `node --test` cases), `e2e.mjs` (Playwright), legacy `*.html` probes. |
+| `tests/` | `rules.test.js`, `session.test.js`, `gfx.test.js` (`node --test` cases), `gfx-bench.mjs` (hook for the platform's `tools/gfx-bench.mjs` GPU benchmark; dev-only), `e2e.mjs` (Playwright), legacy `*.html` probes. |
 | `tools/shots.mjs` | Visual check: title and in-game screenshots at a forced graphics preset, desktop and mobile, into `test-results/`. |
 | `sfx/` | 15 Opus clips + `manifest.txt` (canonical), `manifest.json` (generator), `manifest.md`. |
 | `assets/` | Authored key art and textures (§8). |
@@ -312,20 +313,57 @@ inner rule — same layout, sizes and colours as Plain. Optional post-processing
 half-float target): bloom limited to the untone-mapped accents (selection/target rings, particle
 sparks), a colour grade (gentle S-curve, slight saturation, warm highlights / cool shadows, lifted
 blacks) with vignette, and FXAA, SMAA or MSAA. The Settings panel's **Graphics** section (after
-Theme and Reduced motion) offers a quality preset — Auto (chosen from the unmasked GPU name:
-software renderers get Low, discrete GPUs and Apple M-series get High, others Balanced; touch devices
-are capped at Balanced), Low, Balanced, High, Ultra — a render scale (50–200 % on top of the preset's
+Theme and Reduced motion) offers a quality preset — Auto (chosen from the StarHermit hardware level
+below), Low, Balanced, High, Ultra — a render scale (50–200 % on top of the preset's
 scale; the device pixel ratio is capped at 1 / 1.5 / 2 / 2 per preset), one override per category
 (Shadows off/low/medium/high = 0/1024/2048/4096 px maps, Reflections, Surface detail, Bloom, Colour
 grade, Anti-aliasing, Particles off/low/high, Ambient motion), each defaulting to "From preset (…)",
 adaptive resolution (averages 90 frames; above 26 ms steps down 0.1 to 60 %, under 14 ms steps back
 up) and a frame-rate readout (bottom-left of the table, never over controls), plus a summary line
-"GPU · cost summary · W×H px". Choosing a preset clears overrides; changes apply live and persist in
+"GPU · Level N · cost summary · W×H px" ("Level" localized). Choosing a preset clears overrides; changes apply live and persist in
 the settings key as `graphics`. Low renders directly with no composer, shadows or anti-aliasing (as
 cheap as the former low tier); the composer runs only when an effect needs it. If the addons or the
 chain fail, the table renders without post-processing and the panel says so. The panel's strings
 follow the game language (§10) in the nine supported locales and re-render when it changes. `data-gfx-preset` on `<body>` and the
-canvas reports the resolved preset.
+canvas reports the resolved preset. Every card shares one edge material, so a card costs two draw
+calls (face + edge) on every preset.
+
+**Hardware-level detection.** `src/gpu-level.js` (shared StarHermit copy, `window.StarHermitGpu`,
+loaded before `src/gfx.js`, never edited here) rates the WebGL unmasked renderer plus device facts
+(`detectSystem()`: phone/tablet, cores, memory, screen) on the StarHermit hardware level 0–20 (0 =
+Galaxy S20 / Intel UHD or weaker, every software renderer and no WebGL; 20 = RTX 5090; each level ≈
+1.23×; laptop parts two levels below desktop; phones, tablets and ≤ 4 GB machines capped at 9).
+`src/gfx.js` maps it with `presetForLevel(level, { low: 0, balanced: 4, high: 10, ultra: 17 })`, so Auto
+picks Ultra on strong GPUs; adaptive resolution still steps down when slow. Headless SwiftShader is
+level 0 → Low. Phones and tablets pace Auto FPS at half the display refresh rate ("Auto (half refresh
+rate)") and start at 16 simultaneous sounds (shared `game-options.js`).
+
+**Per-preset budgets** (`BUDGETS` / `budgetFor` / `sparkCap` in `src/gfx.js`). Each preset holds 60 FPS
+on the weakest GPU Auto gives it — Low at level 0, Balanced 4, High 10, Ultra 17. Cards, layout, hit
+areas and rules are identical on every preset; only visuals change. Spark and mote counts are tuned at
+the floor level and scale up within the preset on faster GPUs (`StarHermitGpu.scaleBudget`, ≤ 2×, at
+most 1200 / 240).
+
+| Budget | Low | Balanced | High | Ultra |
+|---|---|---|---|---|
+| Desk and card shading | Lambert | Standard | Standard desk, clearcoated Physical faces (Reflections on) | as High |
+| Card-face texture (Detailed; Plain = 128×184) | 1× | 2× | 2× | 3× |
+| Wood texture (slate and felt ½; Detailed) | 256 px | 256 px | 512 px | 1024 px |
+| Slate/felt fine bump | no | no | yes | yes |
+| Card corner segments | 3 | 4 | 8 | 12 |
+| Lamp-pool grid of the surround | 24×20 | 36×30 | 60×50 | 60×50 |
+| Spark pool at Particles High (Low: ½) | 120 | 200 | 400 | 600 |
+| Dust motes (Ambient motion on) | 30 | 40 | 70 | 120 |
+| Bloom resolution | ½ | ½ | ½ | full |
+
+**Benchmark** (`node tools/gfx-bench.mjs open-cells`; hook `tests/gfx-bench.mjs` picks the preset in
+Settings → Graphics, starts a classic deal and keeps playing it by tapping the next legal move's cards on
+the 3D table, undoing a few moves when stuck). Measured 2026-10-17 (GPU ms above the draws-skipped
+floor, projected to the preset's floor level; CPU p90 on the RTX 5090 run):
+
+- Desktop 1920×1080: PASS low (typical 1.95 / slow 0.00 ms GPU, CPU 1.00 ms); PASS balanced (4.16 /
+  4.91, CPU 1.40); PASS high (1.12 / 1.66, CPU 1.70); PASS ultra (1.17 / 1.41, CPU 2.00).
+- Mobile 390×844 @3×: PASS low (0.00 / 0.27, CPU 0.70); PASS balanced (0.00 / 0.32, CPU 1.10).
 
 **Visual assets the design calls for** (all under `assets/`, all wired through CSS so a missing file
 degrades to the flat colour): a desk key-art backdrop for the title overlay; a felt texture under
@@ -492,14 +530,14 @@ on `beforeunload`.
 
 **Rendering budget.** Graphics presets `auto|low|balanced|high|ultra` plus per-category overrides
 (§8, `src/gfx.js`); a saved legacy `quality` tier maps to the matching preset. Low drops
-anti-aliasing, shadows, reflections, post-processing and particles, and caps the pixel ratio at 1. Textures are cached per card+theme and disposed on theme change;
+anti-aliasing, shadows, reflections, post-processing and particles, uses Lambert shading, and caps the pixel ratio at 1. Each preset's asset budget (shading model, texture sizes, card corner segments, spark pool, motes, bloom resolution) changes visuals only, never rules or picking. Textures are cached per card+theme and disposed on theme change;
 the particle pool is fixed-size and never a raycast target; WebGL context loss is caught and the
 scene rebuilt. Devices without WebGL (or with the HTML-board setting on) get the DOM board with an
 explanatory note — no error path.
 
 **How the e2e drives the real UI.** `tests/e2e.mjs` serves the folder from an ephemeral port (no
 `/api` routes; any same-origin `/api` or `/ws` request fails the pass), launches Chrome through `playwright-core`, and at 1280×800 and 390×844 clicks
-the visible buttons: title → Settings → Graphics (Low, High, a bloom override, frame-rate readout,
+the visible buttons: title → Settings → Graphics (Low, High with "Level 0" in the summary, a bloom override, frame-rate readout,
 preset-clears-overrides, reload persistence, back to Auto) → HTML board → Play → two legal moves found by asking the live
 engine for a legal action and then *clicking the corresponding DOM buttons* (falling back to focus +
 Enter) → Hint → Collect → Undo → Pause/Resume → Settings persistence → Concede → results → a full
@@ -514,7 +552,9 @@ colour, deal shape and seed stability, ordered runs and capacity maths, every re
 safe-autoplay cascades, scoring components and tie-breaks, terminal reasons, serialization round-trip
 and shape validation, hint ranking, undo/replay determinism, replay tamper detection, lesson stepping,
 integer tick accounting, a fuzz pass of random commands that must never corrupt the deck, and the
-graphics model (GPU detection, preset/override resolution, render-scale clamp, preset clears
+graphics model (hardware level → preset: SwiftShader/llvmpipe/no WebGL, AMD Radeon Graphics and Intel
+UHD → Low, Iris Xe → Balanced, GTX 1070 → High, RTX 4080/5090 → Ultra, phones such as Adreno 740 capped
+at Balanced; the per-preset budget table; the localized level label; preset/override resolution, render-scale clamp, preset clears
 overrides, legacy migration, cost summary, locale coverage), the platform layer (cloud-save round trip with
 ETag-conditional writes, a 412 conflict re-read, `mergeSaves`, sign-in on a UUID host, no network when
 standalone) and i18n coverage.

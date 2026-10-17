@@ -544,7 +544,7 @@
         var inf = info();
         var r = inf ? inf.resolved : G.resolve(saved(), 'balanced');
         var gpu = inf && inf.gpu ? inf.gpu : t('unknownGpu');
-        summaryEl.textContent = gpu + ' · ' + G.describe(r, inf ? inf.pixels : null, t) +
+        summaryEl.textContent = gpu + (inf && inf.level != null ? ' · ' + t('level', inf.level) : '') + ' · ' + G.describe(r, inf ? inf.pixels : null, t) +
           (inf && r.showFps && inf.fps ? ' · ' + inf.fps + ' fps' : '');
         summaryEl.dataset.preset = r.preset;
         var msg = !inf ? t('noScene') : (inf.postFailed && r.post ? t('postFailed') : '');

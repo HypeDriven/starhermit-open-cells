@@ -51,10 +51,11 @@
   var textureCache = new Map();
 
   // Card faces are drawn on a 128x184 design grid; `hi` (Surface detail:
-  // Detailed) renders the same layout at 2x with a linen weave and a gilt
-  // inner rule, so glyph positions and sizes are identical in both tiers.
-  function cardTexture(cardId, theme, hi) {
-    var k = hi ? 2 : 1;
+  // Detailed) renders the same layout at the preset's face scale `k` (2x, 3x
+  // on Ultra) with a linen weave and a gilt inner rule, so glyph positions
+  // and sizes are identical in every tier.
+  function cardTexture(cardId, theme, hi, scale) {
+    var k = hi ? (scale || 2) : 1;
     var key = theme.id + '/' + cardId + '/' + k;
     if (textureCache.has(key)) return textureCache.get(key);
     var W = 128, H = 184;
@@ -329,6 +330,15 @@
     } catch (e) { return ''; }
   }
 
+  // Run a post pass at a fraction of the frame: EffectComposer.addPass/setSize hand every pass the
+  // full frame size, so the pass's own setSize applies the budget's scale (half-res bloom below Ultra).
+  function atScale(pass, k) {
+    if (!(k < 1)) return pass;
+    var setSize = pass.setSize.bind(pass);
+    pass.setSize = function (w, h) { setSize(Math.max(1, Math.round(w * k)), Math.max(1, Math.round(h * k))); };
+    return pass;
+  }
+
   function isTouchDevice() {
     try { return !!(global.matchMedia && global.matchMedia('(pointer: coarse)').matches); } catch (e) { return false; }
   }
@@ -350,10 +360,21 @@
 
     var gpu = gpuName(renderer.getContext());
     var touch = isTouchDevice();
-    var detected = G.detectPreset(gpu, touch);
+    // StarHermit hardware level (src/gpu-level.js): renderer string + device facts (phone/tablet,
+    // cores, memory, screen).
+    var sys = { mobile: touch, webgl2: !!renderer.capabilities.isWebGL2 };
+    try {
+      var SG = global.StarHermitGpu;
+      if (SG) {
+        var d = SG.detectSystem();
+        sys = { mobile: touch || d.mobile, webgl2: sys.webgl2, touch: d.touch, screen: d.screen, cores: d.cores, memoryGb: d.memoryGb, astc: d.astc };
+      }
+    } catch (e) { /* defaults */ }
+    var gpuLevel = G.detectLevel(gpu, sys);
+    var detected = G.presetForLevel(gpuLevel);
     var savedGfx = options.graphics || {};
     var gfxJson = null;
-    var q = G.resolve(savedGfx, detected);
+    var q = G.resolve(savedGfx, detected, gpuLevel);
 
     var scene = new THREE.Scene();
     var camera = new THREE.PerspectiveCamera(CAMERA.fov, 1, 0.1, 100);
@@ -412,14 +433,19 @@
     var envGroup = new THREE.Group();
     scene.add(envGroup);
 
+    // Desk materials per the preset's budget: Lambert on Low, Standard above; procedural surface
+    // textures at the budget's size, with the fine slate/felt bump on High and Ultra only.
     function envMat(color, rough, metal, envI, texKind, repeat) {
-      var m = new THREE.MeshStandardMaterial({ color: new THREE.Color(color), roughness: rough, metalness: metal });
-      m.envMapIntensity = envI;
+      var b = q.budget;
+      var m = b.material === 'lambert'
+        ? new THREE.MeshLambertMaterial({ color: new THREE.Color(color) })
+        : new THREE.MeshStandardMaterial({ color: new THREE.Color(color), roughness: rough, metalness: metal });
+      if (b.material !== 'lambert') m.envMapIntensity = envI;
       if (texKind && q.detail === 'detailed') {
-        var t = surfaceTexture(texKind, texKind === 'wood' ? 512 : 256);
+        var t = surfaceTexture(texKind, texKind === 'wood' ? b.texture : b.texture / 2);
         t.repeat.set(repeat[0], repeat[1]);
         m.map = t;
-        if (texKind !== 'wood') { m.bumpMap = t; m.bumpScale = texKind === 'felt' ? 0.05 : 0.03; }
+        if (texKind !== 'wood' && b.surfBump && m.isMeshStandardMaterial) { m.bumpMap = t; m.bumpScale = texKind === 'felt' ? 0.05 : 0.03; }
       }
       return m;
     }
@@ -438,7 +464,7 @@
       // Lamp pool as vertex colours: full light near the slab, falling to
       // near-dark at the edges.
       surroundMat.vertexColors = true;
-      var surroundGeom = new THREE.PlaneGeometry(120, 100, 60, 50);
+      var surroundGeom = new THREE.PlaneGeometry(120, 100, q.budget.pool[0], q.budget.pool[1]);
       surroundGeom.rotateX(-Math.PI / 2);
       var sp = surroundGeom.attributes.position;
       var cols = new Float32Array(sp.count * 3);
@@ -528,9 +554,10 @@
       return s;
     }
 
-    function cardGeometry() {
+    // Card mesh per the budget's corner segments (same outline and size on every preset).
+    function cardGeometry(curve) {
       if (!cardShape) cardShape = roundedRectShape(LAYOUT.cardW, LAYOUT.cardH, 0.07);
-      var geom = new THREE.ExtrudeGeometry(cardShape, { depth: LAYOUT.cardD, bevelEnabled: true, bevelThickness: 0.006, bevelSize: 0.006, bevelSegments: 1 });
+      var geom = new THREE.ExtrudeGeometry(cardShape, { depth: LAYOUT.cardD, curveSegments: curve, bevelEnabled: true, bevelThickness: 0.006, bevelSize: 0.006, bevelSegments: 1 });
       // ExtrudeGeometry emits UVs in world units; normalize the caps to 0..1
       // so the face texture maps exactly once across the card.
       var pos = geom.attributes.position, uv = geom.attributes.uv;
@@ -542,14 +569,15 @@
       geom.rotateX(-Math.PI / 2);
       return geom;
     }
-    var sharedCardGeom = cardGeometry();
+    var sharedCardGeom = cardGeometry(q.budget.curve), cardCurve = q.budget.curve;
 
     // Card face: with Reflections on, a lightly clearcoated physical
     // material (a soft sheen from the room environment, kept low so faces
     // never wash out); otherwise the plain standard material.
     function makeFaceMat(cardId) {
-      var face = cardTexture(cardId, theme, q.detail === 'detailed');
-      if (q.reflections === 'on') {
+      var face = cardTexture(cardId, theme, q.detail === 'detailed', q.budget.face);
+      if (q.budget.material === 'lambert') return new THREE.MeshLambertMaterial({ map: face });
+      if (q.reflections === 'on' && q.budget.material === 'physical') {
         var pm = new THREE.MeshPhysicalMaterial({ map: face, roughness: 0.52, metalness: 0.0, clearcoat: 0.3, clearcoatRoughness: 0.42 });
         pm.envMapIntensity = 0.35;
         return pm;
@@ -557,12 +585,22 @@
       return new THREE.MeshStandardMaterial({ map: face, roughness: 0.55, metalness: 0.02 });
     }
 
+    // One card-edge material shared by every card (fewer state changes per frame).
+    var sideMatShared = null;
+    function cardSideMat() {
+      var lambert = q.budget.material === 'lambert';
+      if (sideMatShared && sideMatShared.isMeshLambertMaterial === lambert) return sideMatShared;
+      sideMatShared = lambert ? new THREE.MeshLambertMaterial({ color: 0xd8d2c2 }) : new THREE.MeshStandardMaterial({ color: 0xd8d2c2, roughness: 0.6, metalness: 0 });
+      if (!lambert) sideMatShared.envMapIntensity = 0.3;
+      return sideMatShared;
+    }
+
     function makeCardMesh(cardId) {
       var back = backTexture(theme);
-      var sideMat = new THREE.MeshStandardMaterial({ color: 0xd8d2c2, roughness: 0.6, metalness: 0 });
-      sideMat.envMapIntensity = 0.3;
+      var lambert = q.budget.material === 'lambert';
+      var sideMat = cardSideMat();
       var faceMat = makeFaceMat(cardId);
-      var backMat = new THREE.MeshStandardMaterial({ map: back, roughness: 0.6, metalness: 0.05 });
+      var backMat = lambert ? new THREE.MeshLambertMaterial({ map: back }) : new THREE.MeshStandardMaterial({ map: back, roughness: 0.6, metalness: 0.05 });
       // ExtrudeGeometry groups: 0 = front/back caps... use multi-material:
       // [cap(front), side]. We assign face to cap; back is hidden (face-up game),
       // but keep a distinct back material for deal animations.
@@ -654,7 +692,7 @@
     }
     function ensureParticles() {
       if (particlePool) return;
-      var MAX = 400; // well under the 5k mobile budget
+      var MAX = G.SPARK_MAX; // allocated once at the largest budget; the preset uses sparkCap of it
       var geom = new THREE.BufferGeometry();
       var pos = new Float32Array(MAX * 3);
       geom.setAttribute('position', new THREE.BufferAttribute(pos, 3));
@@ -664,7 +702,7 @@
       points.frustumCulled = false;
       points.raycast = function () {}; // cosmetic particles never intercept raycasts
       scene.add(points);
-      particlePool = { points: points, pos: pos, vel: new Float32Array(MAX * 3), life: new Float32Array(MAX), active: false, max: MAX };
+      particlePool = { points: points, pos: pos, vel: new Float32Array(MAX * 3), life: new Float32Array(MAX), active: false, max: MAX, cap: G.sparkCap(q) };
       particleLook();
     }
 
@@ -672,11 +710,12 @@
       if (reducedMotion || q.particles === 'off') return;
       ensureParticles();
       var p = particlePool;
-      if (q.particles === 'low') count = Math.ceil(count / 2);
+      // Burst sizes are authored for a 400-spark pool; the preset's budget scales them.
+      count = Math.max(1, Math.round(count * p.cap / 400));
       // Append after live particles so overlapping bursts do not cut each other.
       var start = 0;
-      while (start < p.max && p.life[start] > 0) start++;
-      var n = Math.min(count, p.max - start);
+      while (start < p.cap && p.life[start] > 0) start++;
+      var n = Math.min(count, p.cap - start);
       for (var j = 0; j < n; j++) {
         var i = start + j;
         p.pos[i * 3] = x; p.pos[i * 3 + 1] = y; p.pos[i * 3 + 2] = z;
@@ -696,7 +735,7 @@
       var p = particlePool;
       if (!p || !p.active) return;
       var any = false;
-      for (var i = 0; i < p.max; i++) {
+      for (var i = 0; i < p.cap; i++) {
         if (p.life[i] <= 0) { p.pos[i * 3 + 1] = -50; continue; }
         any = true;
         p.life[i] -= dt * 1.4;
@@ -707,6 +746,7 @@
         if (p.life[i] <= 0) p.pos[i * 3 + 1] = -50;
       }
       p.points.geometry.attributes.position.needsUpdate = true;
+      p.points.geometry.setDrawRange(0, p.cap);
       if (!any) { p.active = false; p.points.visible = false; }
     }
 
@@ -715,7 +755,7 @@
     var motes = null;
     function ensureMotes() {
       if (motes) return;
-      var N = 70;
+      var N = G.MOTE_MAX; // built at the largest budget; the preset draws q.budget.motes of them
       var pos = new Float32Array(N * 3), seed = new Float32Array(N);
       for (var i = 0; i < N; i++) {
         var h = Math.sin(i * 12.9898) * 43758.5453; h -= Math.floor(h);
@@ -732,6 +772,7 @@
       pts.raycast = function () {};
       scene.add(pts);
       motes = { points: pts, pos: pos, seed: seed, n: N, t: 0 };
+      pts.geometry.setDrawRange(0, Math.min(N, q.budget.motes));
     }
     function updateMotes(dt) {
       var on = q.ambient === 'on' && !reducedMotion;
@@ -740,8 +781,8 @@
       motes.points.visible = on;
       if (!on) { key.intensity = 1.35; return; }
       motes.t += dt;
-      var p = motes.pos;
-      for (var i = 0; i < motes.n; i++) {
+      var p = motes.pos, live = Math.min(motes.n, q.budget.motes);
+      for (var i = 0; i < live; i++) {
         var sd = motes.seed[i];
         p[i * 3] += Math.sin(motes.t * 0.23 + sd) * dt * 0.08;
         p[i * 3 + 1] += (Math.sin(motes.t * 0.17 + sd * 1.7) * 0.05 + 0.02) * dt;
@@ -1053,6 +1094,7 @@
         mats[0] = fresh;
         entry.mesh.userData.faceMat = fresh;
         old.dispose();
+        mats[1] = entry.mesh.userData.sideMat = cardSideMat();
       });
     }
 
@@ -1085,7 +1127,7 @@
       gfxJson = json;
       savedGfx = saved || {};
       var prev = q;
-      q = G.resolve(savedGfx, detected);
+      q = G.resolve(savedGfx, detected, gpuLevel);
       canvas.dataset.gfxPreset = q.preset;
       document.body.dataset.gfxPreset = q.preset;
 
@@ -1109,7 +1151,22 @@
 
       if (q.reflections === 'on') ensureEnvironment();
       applyEnvironment();
-      if (prev.detail !== q.detail || prev.reflections !== q.reflections) {
+      if (particlePool) {
+        particlePool.cap = G.sparkCap(q);
+        for (var pi = particlePool.cap; pi < particlePool.max; pi++) { particlePool.life[pi] = 0; particlePool.pos[pi * 3 + 1] = -50; }
+      }
+      if (motes) motes.points.geometry.setDrawRange(0, Math.min(motes.n, q.budget.motes));
+      var pb = prev.budget || {}, nb = q.budget;
+      if (cardCurve !== nb.curve) {
+        var oldGeom = sharedCardGeom;
+        sharedCardGeom = cardGeometry(nb.curve);
+        cardCurve = nb.curve;
+        cardMeshes.forEach(function (e) { e.mesh.geometry = sharedCardGeom; });
+        oldGeom.dispose();
+      }
+      var assetsChanged = pb.material !== nb.material || pb.face !== nb.face || pb.texture !== nb.texture ||
+        pb.surfBump !== nb.surfBump || String(pb.pool) !== String(nb.pool);
+      if (prev.detail !== q.detail || prev.reflections !== q.reflections || assetsChanged) {
         // Surface textures and card materials depend on these tiers.
         disposeTextures();
         refreshCardFaces();
@@ -1137,7 +1194,7 @@
 
     function computePostKey(w, h) {
       if (!q.post || !addons) return 'none';
-      return [q.bloom, q.grade, q.antialias, w, h, pixelRatio].join('|');
+      return [q.bloom, q.grade, q.antialias, q.budget.bloomRes, w, h, pixelRatio].join('|');
     }
 
     function buildPost(w, h) {
@@ -1158,7 +1215,7 @@
           if (q.bloom === 'on') {
             // High threshold: tone-mapped surfaces stay below it, so only
             // the untone-mapped accents (markers, sparks) glow.
-            c.addPass(new A.UnrealBloomPass(new THREE.Vector2(w, h), 0.6, 0.45, 0.9));
+            c.addPass(atScale(new A.UnrealBloomPass(new THREE.Vector2(w, h), 0.6, 0.45, 0.9), q.budget.bloomRes));
           }
           gradePass = new A.ShaderPass(GradeShader);
           gradePass.uniforms.uAmount.value = q.grade === 'on' ? 1 : 0;
@@ -1204,6 +1261,7 @@
     function graphicsInfo() {
       return {
         gpu: gpu,
+        level: gpuLevel,
         detected: detected,
         resolved: q,
         pixels: [Math.round(size[0] * pixelRatio), Math.round(size[1] * pixelRatio)],
@@ -1335,6 +1393,15 @@
       },
       onPointerAction: function (cb) { pointerCb = cb; },
       cardLocOf: cardLocOf,
+      // Client-space point of a logical location (card at `depth`, or the empty slot), for tooling.
+      screenPos: function (loc, depth) {
+        var p = locToWorld(loc, depth || 0);
+        // Tableau: the uncovered top strip of the card, where a stacked card can still be pressed.
+        var z = loc.zone === 'tableau' ? p.z - LAYOUT.cardH / 2 + LAYOUT.stackDY / 2 : p.z;
+        var v = new THREE.Vector3(p.x, p.y, z).project(camera);
+        var r = canvas.getBoundingClientRect();
+        return { x: r.left + (v.x + 1) / 2 * r.width, y: r.top + (1 - v.y) / 2 * r.height };
+      },
       start: start,
       stop: stop,
       resize: resize,

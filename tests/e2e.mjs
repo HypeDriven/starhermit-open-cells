@@ -120,6 +120,8 @@ async function runPass(browser, vpName, contextOptions) {
       await gfx('gfx-preset').selectOption('high');
       await waitApp(() => document.body.dataset.gfxPreset === 'high');
       await waitApp(() => /2048² shadows/.test(document.getElementById('gfx-summary').textContent));
+      const sum = await gfx('gfx-summary').textContent();
+      if (!/ · Level 0 · /.test(sum)) throw new Error(`summary lacks the hardware level: ${sum}`);
       // Per-category override: bloom off, then the summary drops it.
       await gfx('gfx-bloom').selectOption('off');
       await waitApp(() => !/bloom/.test(document.getElementById('gfx-summary').textContent));

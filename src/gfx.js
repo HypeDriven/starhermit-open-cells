@@ -1,6 +1,7 @@
 /*
  * Open Cells — graphics quality model. Pure (no three.js, no DOM): presets,
- * per-category overrides, GPU-based Auto detection, a cost summary and the
+ * per-category overrides, StarHermit hardware-level Auto detection, per-preset
+ * asset/effect budgets, a cost summary and the
  * Graphics panel strings. The renderer and the settings panel both read it so
  * they agree on what a setting means. Browser: window.OCGfx; Node: require().
  */
@@ -35,16 +36,78 @@
 
   var SHADOW_MAP = { off: 0, low: 1024, medium: 2048, high: 4096 };
 
-  /** Best preset for this GPU, from the unmasked renderer string. */
-  function detectPreset(gpu, touch) {
-    var g = String(gpu || '').toLowerCase();
-    var p;
-    if (/swiftshader|llvmpipe|softpipe|software|basic render/.test(g)) p = 'low';
-    else if (/nvidia|geforce|rtx|gtx|quadro|radeon rx|radeon pro|apple m\d/.test(g)) p = 'high';
-    else p = 'balanced';
-    // Phones and tablets: cap Auto at Balanced (heat and battery).
-    if (touch && (p === 'high' || p === 'ultra')) p = 'balanced';
-    return p;
+  // Auto picks the preset from the StarHermit hardware level (0 = Galaxy S20 / Intel UHD or weaker,
+  // 20 = RTX 5090; src/gpu-level.js -> window.StarHermitGpu, loaded before this file): Low from 0,
+  // Balanced from 4, High from 10, Ultra from 17. Phones, tablets and <= 4 GB machines are capped at 9.
+  var LEVELS = { low: 0, balanced: 4, high: 10, ultra: 17 };
+  function gpuApi() {
+    if (typeof self !== 'undefined' && self.StarHermitGpu) return self.StarHermitGpu;
+    return typeof globalThis !== 'undefined' ? globalThis.StarHermitGpu : null;
+  }
+
+  /**
+   * Hardware level 0–20 for an unmasked renderer string plus StarHermitGpu.detectSystem() facts
+   * (`system` may also be a boolean: true = phone/tablet).
+   */
+  function detectLevel(gpu, system) {
+    var G = gpuApi();
+    var sys = typeof system === 'object' && system ? system : { mobile: !!system };
+    var s = Object.assign({ webgl: true, webgl2: true }, sys, { gpu: String(gpu || '') });
+    if (!gpu) s.webgl = false; // no renderer string: no usable WebGL
+    return G ? G.detectLevel(s) : (gpu ? LEVELS.balanced : 0);
+  }
+
+  /** The preset Auto starts from for a hardware level. */
+  function presetForLevel(level) {
+    var G = gpuApi();
+    if (G) return G.presetForLevel(level, LEVELS);
+    return PRESETS.filter(function (p) { return LEVELS[p] <= level; }).pop() || 'low';
+  }
+
+  /** Best preset for this GPU (the hardware level already caps phones/tablets at Balanced). */
+  function detectPreset(gpu, system) {
+    return presetForLevel(detectLevel(gpu, system));
+  }
+
+  /*
+   * Per-preset asset and effect budget. Each preset holds 60 FPS on the weakest GPU Auto gives it
+   * (Low -> level 0, Balanced -> 4, High -> 10, Ultra -> 17; measured with tests/gfx-bench.mjs).
+   * Cards, layout, hit areas and rules are identical on every preset — only visuals change.
+   *   material  desk and card shading: lambert (Low) / standard (Balanced) / physical card faces with
+   *             a clearcoat sheen when Reflections are on (High, Ultra)
+   *   face      card-face texture scale over the 128×184 design grid (Surface detail Detailed; Plain = 1)
+   *   texture   procedural wood texture size in px (slate and felt: half; Surface detail Detailed)
+   *   surfBump  fine bump map on the slate and felt (Detailed)
+   *   curve     card corner segments (rounded-rectangle outline of the card mesh)
+   *   pool      lamp-pool grid of the walnut surround (vertex colours), columns × rows
+   *   sparks    spark-pool size at Particles High (Low: half of it), scaled with the level
+   *   motes     dust motes in the lamp light (Ambient motion On), scaled with the level
+   *   bloomRes  bloom resolution as a fraction of the frame
+   */
+  var BUDGETS = {
+    low: { material: 'lambert', face: 1, texture: 256, surfBump: false, curve: 3, pool: [24, 20], sparks: 120, motes: 30, bloomRes: 0.5 },
+    balanced: { material: 'standard', face: 2, texture: 256, surfBump: false, curve: 4, pool: [36, 30], sparks: 200, motes: 40, bloomRes: 0.5 },
+    high: { material: 'physical', face: 2, texture: 512, surfBump: true, curve: 8, pool: [60, 50], sparks: 400, motes: 70, bloomRes: 0.5 },
+    ultra: { material: 'physical', face: 3, texture: 1024, surfBump: true, curve: 12, pool: [60, 50], sparks: 600, motes: 120, bloomRes: 1 }
+  };
+  var SPARK_MAX = 1200, MOTE_MAX = 240;
+
+  /** A preset's concrete budget for a hardware level (particle counts scale <= 2x within the preset). */
+  function budgetFor(preset, level) {
+    var src = BUDGETS[preset] || BUDGETS.balanced;
+    var b = {};
+    Object.keys(src).forEach(function (k) { b[k] = src[k]; });
+    var G = gpuApi(), floor = LEVELS[preset] || 0;
+    var lv = Math.max(isFinite(level) && level !== null ? level : floor, floor);
+    var k = G ? Math.min(2, G.scaleBudget(1, lv, floor)) : 1;
+    b.sparks = Math.min(SPARK_MAX, Math.round(b.sparks * k));
+    b.motes = Math.min(MOTE_MAX, Math.round(b.motes * k));
+    return b;
+  }
+
+  /** Live spark-pool size for resolved settings (Particles Low: half the preset's budget). */
+  function sparkCap(r) {
+    return r.particles === 'high' ? r.budget.sparks : r.particles === 'low' ? Math.round(r.budget.sparks / 2) : 0;
   }
 
   function clamp(v, a, b) { return Math.min(b, Math.max(a, v)); }
@@ -53,7 +116,7 @@
    * Resolve saved settings into concrete tiers.
    * saved: { preset: 'auto'|preset, render_scale, adaptive, show_fps, <cat>: 'preset'|tier }
    */
-  function resolve(saved, detected) {
+  function resolve(saved, detected, level) {
     var s = saved || {};
     var auto = PRESETS.indexOf(s.preset) < 0;
     var preset = auto ? (PRESETS.indexOf(detected) >= 0 ? detected : 'balanced') : s.preset;
@@ -68,6 +131,8 @@
     Object.keys(CATEGORIES).forEach(function (cat) {
       out[cat] = CATEGORIES[cat].indexOf(s[cat]) >= 0 ? s[cat] : row[cat];
     });
+    out.level = typeof level === 'number' && isFinite(level) ? level : LEVELS[preset];
+    out.budget = budgetFor(preset, out.level);
     out.adaptive = s.adaptive !== false;
     out.showFps = !!s.show_fps;
     // The composer runs only when an effect needs it (MSAA included, since
@@ -114,7 +179,7 @@
       t_off: 'Off', t_on: 'On', t_low: 'Low', t_medium: 'Medium', t_high: 'High', t_plain: 'Plain', t_detailed: 'Detailed',
       t_fxaa: 'FXAA', t_smaa: 'SMAA', t_msaa: 'MSAA',
       s_noShadows: 'no shadows', s_shadows: '{0}² shadows', s_reflections: 'reflections', s_bloom: 'bloom',
-      s_grade: 'color grade', s_noAA: 'no anti-aliasing', unknownGpu: 'unknown GPU'
+      s_grade: 'color grade', s_noAA: 'no anti-aliasing', unknownGpu: 'unknown GPU', level: 'Level {0}'
     },
     'en-GB': {
       sh_signIn: 'Sign in with StarHermit', sh_signInHint: 'Sync your progress and settings.', sh_invite: 'Invite a friend', sh_inviteHint: 'Copy your invite link.', sh_copied: 'Invite link copied to the clipboard.', sh_copyFailed: 'Couldn’t copy the invite link.', sh_signedOut: 'Signed out — playing locally.', sh_lbPosting: 'Posting score to the leaderboard…', sh_lbRank: 'Leaderboard rank: #{0}', sh_lbPosted: 'Score posted to the leaderboard.', sh_lbNotPosted: 'Score not posted to the leaderboard.',
@@ -132,7 +197,7 @@
       cat_grade: 'Corrección de color', cat_antialias: 'Suavizado de bordes', cat_particles: 'Partículas', cat_ambient: 'Movimiento ambiental',
       t_off: 'No', t_on: 'Sí', t_low: 'Bajo', t_medium: 'Medio', t_high: 'Alto', t_plain: 'Simple', t_detailed: 'Detallado',
       s_noShadows: 'sin sombras', s_shadows: 'sombras de {0}²', s_reflections: 'reflejos', s_bloom: 'resplandor',
-      s_grade: 'corrección de color', s_noAA: 'sin suavizado', unknownGpu: 'GPU desconocida'
+      s_grade: 'corrección de color', s_noAA: 'sin suavizado', unknownGpu: 'GPU desconocida', level: 'Nivel {0}'
     },
     'es-ES': {
       sh_signIn: 'Iniciar sesión con StarHermit', sh_signInHint: 'Sincroniza tu progreso y tus ajustes.', sh_invite: 'Invitar a un amigo', sh_inviteHint: 'Copia tu enlace de invitación.', sh_copied: 'Enlace de invitación copiado al portapapeles.', sh_copyFailed: 'No se ha podido copiar el enlace de invitación.', sh_signedOut: 'Sesión cerrada: juegas en local.', sh_lbPosting: 'Enviando la puntuación a la clasificación…', sh_lbRank: 'Puesto en la clasificación: #{0}', sh_lbPosted: 'Puntuación enviada a la clasificación.', sh_lbNotPosted: 'La puntuación no se ha enviado a la clasificación.',
@@ -150,7 +215,7 @@
       cat_grade: 'Farbkorrektur', cat_antialias: 'Kantenglättung', cat_particles: 'Partikel', cat_ambient: 'Umgebungsbewegung',
       t_off: 'Aus', t_on: 'An', t_low: 'Niedrig', t_medium: 'Mittel', t_high: 'Hoch', t_plain: 'Schlicht', t_detailed: 'Detailliert',
       s_noShadows: 'keine Schatten', s_shadows: '{0}²-Schatten', s_reflections: 'Spiegelungen', s_bloom: 'Leuchten',
-      s_grade: 'Farbkorrektur', s_noAA: 'keine Kantenglättung', unknownGpu: 'unbekannte GPU'
+      s_grade: 'Farbkorrektur', s_noAA: 'keine Kantenglättung', unknownGpu: 'unbekannte GPU', level: 'Stufe {0}'
     },
     'fr-FR': {
       sh_signIn: 'Se connecter avec StarHermit', sh_signInHint: 'Synchronisez progression et réglages.', sh_invite: 'Inviter un ami', sh_inviteHint: 'Copier votre lien d’invitation.', sh_copied: 'Lien d’invitation copié dans le presse-papiers.', sh_copyFailed: 'Impossible de copier le lien d’invitation.', sh_signedOut: 'Déconnecté — vous jouez en local.', sh_lbPosting: 'Envoi du score au classement…', sh_lbRank: 'Rang au classement : #{0}', sh_lbPosted: 'Score envoyé au classement.', sh_lbNotPosted: 'Score non envoyé au classement.',
@@ -164,7 +229,7 @@
       cat_grade: 'Étalonnage des couleurs', cat_antialias: 'Anticrénelage', cat_particles: 'Particules', cat_ambient: 'Mouvement d’ambiance',
       t_off: 'Désactivé', t_on: 'Activé', t_low: 'Bas', t_medium: 'Moyen', t_high: 'Élevé', t_plain: 'Simple', t_detailed: 'Détaillé',
       s_noShadows: 'sans ombres', s_shadows: 'ombres {0}²', s_reflections: 'reflets', s_bloom: 'halo',
-      s_grade: 'étalonnage', s_noAA: 'sans anticrénelage', unknownGpu: 'GPU inconnu'
+      s_grade: 'étalonnage', s_noAA: 'sans anticrénelage', unknownGpu: 'GPU inconnu', level: 'Niveau {0}'
     },
     'fr-CA': {
       sh_signIn: 'Se connecter avec StarHermit', sh_signInHint: 'Synchronisez votre progression et vos paramètres.', sh_invite: 'Inviter un ami', sh_inviteHint: 'Copier votre lien d’invitation.', sh_copied: 'Lien d’invitation copié dans le presse-papiers.', sh_copyFailed: 'Impossible de copier le lien d’invitation.', sh_signedOut: 'Déconnecté — vous jouez en local.', sh_lbPosting: 'Envoi du pointage au classement…', sh_lbRank: 'Rang au classement : #{0}', sh_lbPosted: 'Pointage envoyé au classement.', sh_lbNotPosted: 'Pointage non envoyé au classement.',
@@ -182,7 +247,7 @@
       cat_grade: 'Correção de cor', cat_antialias: 'Antisserrilhado', cat_particles: 'Partículas', cat_ambient: 'Movimento ambiente',
       t_off: 'Desligado', t_on: 'Ligado', t_low: 'Baixo', t_medium: 'Médio', t_high: 'Alto', t_plain: 'Simples', t_detailed: 'Detalhado',
       s_noShadows: 'sem sombras', s_shadows: 'sombras {0}²', s_reflections: 'reflexos', s_bloom: 'brilho',
-      s_grade: 'correção de cor', s_noAA: 'sem antisserrilhado', unknownGpu: 'GPU desconhecida'
+      s_grade: 'correção de cor', s_noAA: 'sem antisserrilhado', unknownGpu: 'GPU desconhecida', level: 'Nível {0}'
     },
     'it-IT': {
       sh_signIn: 'Accedi con StarHermit', sh_signInHint: 'Sincronizza progressi e impostazioni.', sh_invite: 'Invita un amico', sh_inviteHint: 'Copia il tuo link di invito.', sh_copied: 'Link di invito copiato negli appunti.', sh_copyFailed: 'Impossibile copiare il link di invito.', sh_signedOut: 'Disconnesso: giochi in locale.', sh_lbPosting: 'Invio del punteggio alla classifica…', sh_lbRank: 'Posizione in classifica: #{0}', sh_lbPosted: 'Punteggio inviato alla classifica.', sh_lbNotPosted: 'Punteggio non inviato alla classifica.',
@@ -196,7 +261,7 @@
       cat_grade: 'Correzione colore', cat_antialias: 'Antialiasing', cat_particles: 'Particelle', cat_ambient: 'Movimento ambientale',
       t_off: 'No', t_on: 'Sì', t_low: 'Basso', t_medium: 'Medio', t_high: 'Alto', t_plain: 'Semplice', t_detailed: 'Dettagliato',
       s_noShadows: 'senza ombre', s_shadows: 'ombre {0}²', s_reflections: 'riflessi', s_bloom: 'bagliore',
-      s_grade: 'correzione colore', s_noAA: 'senza antialiasing', unknownGpu: 'GPU sconosciuta'
+      s_grade: 'correzione colore', s_noAA: 'senza antialiasing', unknownGpu: 'GPU sconosciuta', level: 'Livello {0}'
     }
   };
   // Regional variants inherit from their base table.
@@ -246,6 +311,14 @@
     PRESETS: PRESETS,
     CATEGORIES: CATEGORIES,
     SHADOW_MAP: SHADOW_MAP,
+    LEVELS: LEVELS,
+    BUDGETS: BUDGETS,
+    SPARK_MAX: SPARK_MAX,
+    MOTE_MAX: MOTE_MAX,
+    detectLevel: detectLevel,
+    presetForLevel: presetForLevel,
+    budgetFor: budgetFor,
+    sparkCap: sparkCap,
     LOCALES: Object.keys(STRINGS),
     detectPreset: detectPreset,
     resolve: resolve,
