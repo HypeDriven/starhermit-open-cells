@@ -6,7 +6,7 @@
 (function (global, factory) {
   if (typeof module === 'object' && module.exports) module.exports = factory(require('./rules.js'));
   else global.OCContent = factory(global.OCRules);
-})(typeof self !== 'undefined' ? self : this, function (R) {
+})(typeof self !== 'undefined' ? self : globalThis, function (R) {
   'use strict';
 
   var CONTENT_VERSION = 1;

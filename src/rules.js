@@ -12,7 +12,7 @@
 (function (global, factory) {
   if (typeof module === 'object' && module.exports) module.exports = factory();
   else global.OCRules = factory();
-})(typeof self !== 'undefined' ? self : this, function () {
+})(typeof self !== 'undefined' ? self : globalThis, function () {
   'use strict';
 
   var VERSION = 1;
