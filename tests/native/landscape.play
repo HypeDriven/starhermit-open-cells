@@ -1,0 +1,20 @@
+# Phone landscape (844 x 390, DPR 3): the title, a Practice deal from Play with the narrow status rail and
+# the tray, a move by touch, the pause screen from the tray and Leave.
+# viewport 844x390@3
+until 600 Daily Deal
+frames 10
+save title-landscape
+touch =Play
+until 300 =Collect
+frames 60
+save desk-landscape
+touch =Hint
+frames 20
+touch =Undo
+frames 10
+touch =Pause
+until 120 Resume
+frames 10
+save pause-landscape
+touch =Leave deal
+until 300 Daily Deal

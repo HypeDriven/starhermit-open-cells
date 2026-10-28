@@ -1,0 +1,88 @@
+# The menus and the keyboard on a desktop (1280 x 800): Modes, How to play, Settings (a toggle, the
+# palette), Scores, the Daily and Score Chase setups (typing a seed), then a deal played by keys: the
+# board cursor (arrows), select and place (Enter), undo (Z), hint (H), pause (P) and resume, a drag on
+# lesson 4, Restart and Concede with their confirmations, to the conceded results.
+# viewport 1280x800@1
+until 600 Daily Deal
+frames 10
+click =Modes
+until 120 Choose a mode
+frames 10
+save modes
+click =Close Choose a mode
+frames 10
+click =Help
+until 120 Supermoves
+frames 10
+save help
+click =Back
+frames 10
+click =Settings
+until 120 Suit color palette
+frames 10
+save settings
+click =Left-handed layout
+frames 10
+click =Done
+frames 10
+click =Scores
+until 120 Achievements
+frames 10
+save scores
+click =Close Scores & achievements
+frames 10
+click =Daily Deal
+until 120 Play today’s deal
+frames 10
+save daily
+key Escape 1
+frames 10
+click =Menu
+until 120 Daily Deal
+frames 10
+click =Modes
+until 120 Choose a mode
+frames 10
+click =Open Score Chase
+until 120 Roll a random seed
+frames 10
+click Challenge seed
+frames 5
+type brass-owl-42
+frames 5
+save chase
+click =Play seed
+until 300 chase-brass-owl-42
+frames 30
+# the board cursor: a press of Down puts it on column 1's top card; Enter selects there
+key ArrowDown 1
+frames 5
+key Enter 1
+frames 10
+save cursor
+key Escape 1
+frames 10
+key KeyH 1
+frames 10
+save hint
+frames 10
+key KeyP 1
+until 120 Resume
+frames 10
+save pause
+click =Resume
+frames 10
+click =Restart
+until 120 Restart this deal
+frames 10
+click =Yes
+frames 30
+click =Concede
+until 120 Concede this deal?
+frames 10
+click =Yes
+until 300 Deal conceded.
+frames 10
+save conceded
+click =Leave
+until 300 Daily Deal

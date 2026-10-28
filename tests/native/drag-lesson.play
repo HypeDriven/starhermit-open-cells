@@ -1,0 +1,15 @@
+# Lesson 4 (Moving Sequences) on a desktop: the 8♦–7♣ run dragged by the mouse onto the 9♠.
+# viewport 1280x800@1
+until 600 Daily Deal
+frames 10
+click =Learn
+until 120 Lessons ask you
+frames 10
+click =Start: Moving Sequences
+until 300 Lesson 2/2
+frames 40
+save drag-before
+drag 605 272 518 300 12
+until 300 Deal cleared.
+frames 10
+save drag-done

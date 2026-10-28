@@ -4,7 +4,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const I = require('../src/i18n.js');
-const G = require('../src/gfx.js');
+const SH = require('../src/sh-strings.js');
 const { ALL } = require('./i18n-keys.js');
 
 const placeholders = (s) => [...String(s).matchAll(/\{(\w+)\}/g)].map((m) => m[1]).sort().join(',');
@@ -14,7 +14,7 @@ test('the key set is non-trivial', () => {
 });
 
 for (const locale of I.LOCALES.filter((l) => l !== 'en-US' && l !== 'en-GB')) {
-  test(`${locale}: every key used in markup and code is translated with the same placeholders`, () => {
+  test(`${locale}: every key used in the native client is translated with the same placeholders`, () => {
     const dict = I.DICTS[locale];
     const missing = [...ALL].filter((k) => !Object.prototype.hasOwnProperty.call(dict, k));
     assert.deepEqual(missing, [], `${missing.length} missing in ${locale}`);
@@ -30,13 +30,14 @@ test('no locale carries keys that no longer exist', () => {
   }
 });
 
-test('Graphics and StarHermit strings exist in all nine locales', () => {
+test('the StarHermit account strings exist in all nine locales', () => {
+  const en = SH.shStrings('en-US');
   for (const locale of I.LOCALES) {
-    const t = G.strings(locale);
-    assert.ok(t('quality') && t('quality') !== 'quality', locale);
-    assert.ok(t('sh_signIn') && t('sh_signIn') !== 'sh_signIn', locale);
+    const t = SH.shStrings(locale);
+    for (const k of Object.keys(en)) assert.ok(t[k], `${locale} ${k}`);
+    assert.equal(placeholders(t.lbRank), 'rank', locale);
   }
-  assert.notEqual(G.strings('de-DE')('sh_signIn'), G.strings('en-US')('sh_signIn'));
+  assert.notEqual(SH.shStrings('de-DE').signIn, en.signIn);
 });
 
 test('T falls back to the key and fills placeholders; regional variants inherit', () => {
