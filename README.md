@@ -5,58 +5,52 @@ temporary cells, a fully visible eight-column tableau, four suit foundations.
 Everything is deterministic and inspectable: every deal has a seed, every
 result a replayable command log.
 
+A StarHermit engine script game (engine 1.19.1, `engine.minor=20`): played
+natively by the StarHermit client and in browsers by the engine's web runtime
+(`index.html` is the engine's loader, written by `npm run package`).
+
 ## Run
 
-- **Offline:** open `index.html` in any modern browser, or serve the folder
-  (`python3 -m http.server`, or `node server.js`).
-- **Hosted (StarHermit-style):** `starhermit.txt` declares `launch=index.html`
-  and `server=server.js`. The authoritative script serves the static files and
-  a small `/api/v1` surface (time sync, replay-validated leaderboards, durable
-  idempotent achievements, presence, activity, allow-listed telemetry).
-  `PORT` selects the port (default 8787); server data lives in `.server-data/`
-  (gitignore-worthy, not part of the distribution).
+- **Native:** `starhermit .` in this folder (the published runtime, e.g.
+  `~/sh/runtime/1.19.1/starhermit-1.19.1-linux-x86_64/starhermit`).
+- **Browser:** serve the folder (`python3 -m http.server`) and open it; the
+  loader fetches the pinned engine.
+- `starhermit.txt` declares the manifest, `server=score-script.js` (the
+  platform script that posts finished ranked deals to the high-score board)
+  and every control.
 
 ## Play
 
 - Build all four foundations from ace to king.
 - Columns build downward in alternating colors; ordered runs move together.
 - A run you may move is at most `(free cells + 1) × 2^(empty columns)` long.
-- Controls: drag or tap-to-select/tap-target, double-tap for a smart move;
-  keyboard arrows + Enter/Space, `Z` undo, `H` hint, `A` collect, `Esc` pause;
-  gamepad D-pad + A/B/Start.
+- Controls: drag, or tap to select and tap the target, double-tap for a smart
+  move; keyboard arrows (board cursor) + Enter/Space, `Z` undo, `H` hint,
+  `A` collect, `R` restart, `P`/`Esc` pause, `0` camera; gamepad D-pad +
+  A/B/Start and more (rebind in the runtime's Options).
 
 ## Modes
 
 Learn (6 interactive lessons), Journey (40 authored, solver-validated stages),
-Daily (one immutable UTC seed), Practice (three difficulties, unranked),
-Challenge (constrained deals), Score Chase (seeded boards). Progress,
-settings, boards, and achievements persist locally in a versioned,
-checksummed save document.
+Daily (one UTC seed), Practice (three difficulties, unranked), Challenge
+(constrained deals), Score Chase (seeded boards). Progress, boards and
+achievements live in the engine save (device + cloud when signed in).
 
 ## Architecture
 
-- `src/rules.js` — pure deterministic engine: legality, supermove capacity,
-  scoring breakdown, terminal reasons, serialization, seeded RNG.
-- `src/session.js` — validated commands, undo, replay envelopes, hints (same
-  legal-action API as play), lesson tracking.
-- `src/content.js` — versioned lessons/stages/daily/challenges/themes.
-- `src/render.js` — Three.js desk scene (procedural geometry, canvas-texture
-  cards, PBR lighting, pooled particles, quality tiers, context recovery).
-- `src/board-dom.js` — semantic, fully playable HTML board (accessibility
-  layer and no-WebGL fallback).
-- `src/ui.js` — screens, HUD, focus management, live regions, settings.
-- `src/platform.js` — persistence, leaderboards, platform time sync (signed in only).
-- `src/audio.js` — procedural WebAudio on music/effects/ambience/voice buses.
-- `src/main.js` — app state machine and orchestration.
-- `server.js` — authoritative hosted script (also a standalone static server).
+- `src/rules.js`, `src/session.js`, `src/content.js`, `src/store.js` — the pure
+  game (shared with the Node tests).
+- `native/*.ts` — the engine client: `main.ts` (state machine, input),
+  `screens.ts` (UI), `render.ts` (3D desk), `audio.ts`, `platform.ts`,
+  `quality.ts`, `i18n.ts`, `style.ts`.
+- `spec.md` — the running spec.
 
-## Tests and validation
+## Tests
 
-- `node --test tests/rules.test.js tests/session.test.js` — engine and session
-  unit tests (legality, invalid reasons, scoring, terminal states,
-  serialization, replay determinism, fuzzing).
-- `node tools/validate.js` — offline content proof: every lesson's required
-  actions are performable and every deal seed is solver-proven (`--rescue`
-  finds replacement seeds for any unproven deal).
-- `tests/e2e.html` — browser end-to-end harness driving the real UI
-  (serve the folder, open `/tests/e2e.html`; results in the console).
+- `npm test` — unit tests (`node --test`) and `tests/native.mjs` (tsc,
+  `starhermit check`, the `tests/native/*.play` render checks).
+- `npm run test:browser` — the packaged game in GPU Chrome at desktop, phone
+  and landscape.
+- `npm run validate` — offline content proof (solver).
+- After any change: `npm run package` (and `npm run plays`, `npm run css`,
+  `npm run textures` when their inputs change).
