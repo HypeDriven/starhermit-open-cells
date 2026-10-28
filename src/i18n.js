@@ -11,7 +11,7 @@
  * fr-CA only list their differences from es-419 and fr-FR, en-GB only its
  * spelling changes.
  *
- * The locale comes from sh-language.js (window.StarHermitLanguage): the game's
+ * The browser build took the locale from sh-language.js (window.StarHermitLanguage): the game's
  * Language setting (`ui.language`), Automatic → the StarHermit account's
  * preferred language → navigator.languages → en-US. `?lang=` forces a locale
  * for the page load (QA links) and hides the selector. A change re-applies

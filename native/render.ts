@@ -67,7 +67,7 @@ const hemi = new HemisphereLight(0xfff2dd, 0x20262e, 0.55);
 const key = new DirectionalLight(0xffe8c0, 1.35);
 key.position.set(4, 9, 3);
 key.target.position.set(0, 0, 0.1);
-key.shadow.bias = -0.0004;
+key.shadow.bias = -0.003;
 key.shadow.normalBias = 0.01;
 key.shadow.radius = 3;
 const fill = new DirectionalLight(0xb0c4de, 0.25);
@@ -136,6 +136,7 @@ function envMat(color: Color | string, rough: number, metal: number, envI: numbe
   }
   return m;
 }
+
 
 // ---------------------------------------------------------------- the desk
 interface Slot { mesh: Mesh; loc: Loc }

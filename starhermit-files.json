@@ -1,6 +1,5 @@
 {
   "files": {
-    "assets/desk-felt.webp": {"sha256": "22fd7c8f38a6110d4da2505300f75e645e19fdee80cb6b21dc54b7a9b37c40d6", "size": 33282},
     "assets/results-flourish.webp": {"sha256": "9a79efb8f40222c0b11673cc5e5aa383ad63fad1a5478a0026b3856dc7490dcb", "size": 17060},
     "assets/textures/faces-brass-slate-detailed.webp": {"sha256": "dccead78076299c4e668f5d25730dd69404e1d036f91ff897c606bae58a7edb6", "size": 303676},
     "assets/textures/faces-brass-slate-deuteranopia-detailed.webp": {"sha256": "d9ab65812f4127144ee01b439d14eca49d40974f75d73420a14234bec5cb84f6", "size": 326644},
@@ -52,7 +51,7 @@
     "native/main.ts": {"sha256": "d2e143b5007167ffb9928b3eb9fe5432fa383fde54368806ca63701019b6534d", "size": 39196},
     "native/platform.ts": {"sha256": "5e95853c8c9d1643b3b998b5a6ded05bc340af56633f131c91be04c8ca22a875", "size": 11399},
     "native/quality.ts": {"sha256": "5432c078da83e083c88b92532a2a43ba97be8ca4aafd8d3f3c1f0af08f8a18af", "size": 4082},
-    "native/render.ts": {"sha256": "a5008a5a54e63cdf5167bef1b468d47918fd90eb8ddf52ab493121dc182b4629", "size": 36750},
+    "native/render.ts": {"sha256": "bed485a06ce80b5dbfda3f92e2a209c3b02ba629995db403ace0e9e106a5485b", "size": 36750},
     "native/screens.ts": {"sha256": "23c7e60cdb354d9d176e6b54e931a57f5b2e7d1504535a626510d969f77cf075", "size": 48121},
     "native/style.ts": {"sha256": "20025f2a29298dd93e8597a3aec12bf5563b3be5a9a1468349ad91d0b8aebbe4", "size": 4982},
     "score-script.js": {"sha256": "c4a9ff2da755a3240bdabdc50c954faea89606bf008a6afd53315471539819aa", "size": 2486},
@@ -73,7 +72,7 @@
     "sfx/move-undo.opus": {"sha256": "16ff067a6f2bf9d40bdd905f794a8330617dee600360e4f7b21f586e2be1de28", "size": 11688},
     "sfx/star-award.opus": {"sha256": "35b1a18676f229b631d2916d63c87c359752b504fbebcb2174e236bfbff962d6", "size": 23441},
     "src/content.js": {"sha256": "2eacde71bdd1b2742f8a3572c21842a3ca29608bb85cdcb51b6454709646ad24", "size": 19306},
-    "src/i18n.js": {"sha256": "cd06dd1ea097620f1d676631c71152d8299448ab5f858eb8863b065327a4fbec", "size": 6329},
+    "src/i18n.js": {"sha256": "a7ec154d6b744b629b45e7d66bef33bdde75d88e7a76c5ffef1e0c17eebfc0b8", "size": 6346},
     "src/locales/de.js": {"sha256": "b1b396c7b3659b8b3228fbabcbc4c0d609aa12a923e47e42a0a8dcbfb83a4374", "size": 23526},
     "src/locales/en-GB.js": {"sha256": "a8f03f8d1d3e49e5795ed9e694ddd9b56febc5c88edb2b03a5191411a0bd4edf", "size": 1392},
     "src/locales/es.js": {"sha256": "fd1a9b2f52a576f6bdc4b3e553d9cb0f315a2604b4c8c34217e4e6b6ae192258", "size": 24412},
