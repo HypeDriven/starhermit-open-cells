@@ -12,8 +12,11 @@
 // framed in the playfield rectangle the top bar, rails and tray leave
 // (setViewOffset), as the DOM canvas sat between them.
 //
-// From three.js r152 (legacy lights, colour management on): intensities and
-// colours as written. r152 tone-mapped the scene draw (ACES at 1.05) into its
+// From three.js r152 (legacy lights, colour management on): at engine.minor
+// 26+ punctual lights follow r155+, so every intensity is the page's × π
+// (LEGACY); the page's own fitted shadow box and bias; RoomEnvironment() as
+// r152 called it; reflections are each material's own envMap with its
+// envMapIntensity (scene.environment ignores per-material intensity). r152 tone-mapped the scene draw (ACES at 1.05) into its
 // composer, whose GradeShader output pass graded and vignetted it; the
 // runtime's renderer.bloom / grade / antialias do that (bloom before tone
 // mapping, so its threshold is the old one taken back through the curve).
@@ -22,7 +25,7 @@
 // frame-rate readout are the runtime's. Rendering never touches the rules state.
 import {
   ACESFilmicToneMapping, AdditiveBlending, BoxGeometry, BufferAttribute, BufferGeometry, CanvasTexture, Color, DirectionalLight,
-  DoubleSide, ExtrudeGeometry, Fog, Group, HemisphereLight, Mesh, MeshBasicMaterial, MeshLambertMaterial, MeshPhysicalMaterial,
+  DoubleSide, ExtrudeGeometry, Fog, Group, HemisphereLight, Mesh, MeshBasicMaterial, MeshLambertMaterial, MeshPhysicalMaterial, OrthographicCamera,
   MeshStandardMaterial, NormalBlending, PerspectiveCamera, PlaneGeometry, Plane, PMREMGenerator, Points, PointsMaterial, Raycaster,
   RepeatWrapping, RingGeometry, RoomEnvironment, SRGBColorSpace, Shape, TextureLoader, Vector2, Vector3, pointerToNdc, renderer, scene,
   type Material, type Object3D, type Texture,
@@ -63,14 +66,19 @@ function restPos(loc: Loc, depth: number): { x: number; y: number; z: number } {
 // ---------------------------------------------------------------- the scene's fixed parts
 const camera = new PerspectiveCamera(CAMERA.fov, 1, 0.1, 100);
 const raycaster = new Raycaster();
-const hemi = new HemisphereLight(0xfff2dd, 0x20262e, 0.55);
-const key = new DirectionalLight(0xffe8c0, 1.35);
+/** r152 legacy light units → r155+ physical: × π. */
+const LEGACY = Math.PI;
+const hemi = new HemisphereLight(0xfff2dd, 0x20262e, 0.55 * LEGACY);
+const key = new DirectionalLight(0xffe8c0, 1.35 * LEGACY);
 key.position.set(4, 9, 3);
 key.target.position.set(0, 0, 0.1);
-key.shadow.bias = -0.003;
+const shadowCam = key.shadow.camera as OrthographicCamera;
+Object.assign(shadowCam, { left: -6.6, right: 6.6, top: 5.6, bottom: -5.6, near: 4, far: 18 });
+shadowCam.updateProjectionMatrix();
+key.shadow.bias = -0.0004;
 key.shadow.normalBias = 0.01;
 key.shadow.radius = 3;
-const fill = new DirectionalLight(0xb0c4de, 0.25);
+const fill = new DirectionalLight(0xb0c4de, 0.25 * LEGACY);
 fill.position.set(-5, 6, -2);
 scene.add(hemi, key, key.target, fill);
 
@@ -112,7 +120,7 @@ const spriteTex = (() => {
 })();
 function envMap(): Texture | null {
   if (!envTexture) {
-    try { envTexture = new PMREMGenerator(renderer).fromScene(new RoomEnvironment(renderer), 0.04).texture; }
+    try { envTexture = new PMREMGenerator(renderer).fromScene(new RoomEnvironment(), 0.04).texture; }
     catch (e) { console.warn(`environment: ${e instanceof Error ? e.message : String(e)}`); }
   }
   return envTexture;
@@ -573,7 +581,7 @@ function updateMotes(dt: number): void {
   if (on) ensureMotes();
   if (!motes) return;
   motes.pts.visible = on;
-  if (!on) { key.intensity = 1.35; return; }
+  if (!on) { key.intensity = 1.35 * LEGACY; return; }
   const live = Math.min(MOTE_MAX, look!.budget.motes);
   motes.pts.geometry.setDrawRange(0, live);
   motes.t += dt;
@@ -586,7 +594,7 @@ function updateMotes(dt: number): void {
     if (p[i * 3 + 1]! > 4.2) p[i * 3 + 1] = 0.5;
   }
   motes.pts.geometry.getAttribute("position")!.needsUpdate = true;
-  key.intensity = 1.35 * (1 + Math.sin(motes.t * 0.6) * 0.015);
+  key.intensity = 1.35 * LEGACY * (1 + Math.sin(motes.t * 0.6) * 0.015);
 }
 
 // ---------------------------------------------------------------- camera
@@ -613,7 +621,6 @@ function fitCamera(): void {
     scene.fog.near = d * 1.25;
     scene.fog.far = d * 2.6;
   }
-  key.shadow.distance = camera.position.length() + 12;
   shake = null;
 }
 /** The camera reset key: the framing again. */
@@ -741,8 +748,8 @@ function applyReflections(): void {
     if (!m) return;
     for (const x of Array.isArray(m) ? m : [m]) if (x instanceof MeshStandardMaterial) x.envMap = env;
   });
-  hemi.intensity = env ? 0.32 : 0.55;
-  fill.intensity = env ? 0.18 : 0.25;
+  hemi.intensity = (env ? 0.32 : 0.55) * LEGACY;
+  fill.intensity = (env ? 0.18 : 0.25) * LEGACY;
 }
 function rebuild(): void {
   buildEnvironment();
