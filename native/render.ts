@@ -768,11 +768,14 @@ export function applyLook(next: Look): void {
   renderer.toneMappingExposure = 1.05;
   // UnrealBloomPass(0.6, 0.45, threshold 0.9 on the tone-mapped image): the runtime blooms before tone mapping,
   // where ACES at 1.05 reaches 0.9 from about 1.8 — so only the untone-mapped markers and sparks bloom.
-  renderer.bloom = next.bloom ? { strength: 0.6, radius: 0.45, threshold: 1.8, resolution: next.budget.bloomRes } : null;
+  // The page's three r152 UnrealBloomPass strength 0.6 squared: minor 29 bloom follows r185 (≈2.9× the light).
+  renderer.bloom = next.bloom ? { strength: 0.36, radius: 0.45, threshold: 1.8, resolution: next.budget.bloomRes } : null;
   // GradeShader: 0.18 S-curve, +7 % saturation, cool shadows / warm highlights (smoothstep 0.05–0.6), vignette 0.24.
   renderer.grade = next.grade ? {
-    space: "linear", contrast: 0.09, saturation: 1.07, split: [0.05, 0.6], shadows: [0.97, 0.99, 1.04], highlights: [1.03, 1.0, 0.96],
+    space: "linear", contrast: 0.18, saturation: 1.07, split: [0.05, 0.6], shadows: [0.97, 0.99, 1.04], highlights: [1.03, 1.0, 0.96],
     vignette: { amount: 0.24, inner: 0.3, outer: 0.8, scale: [1, 0.85] },
+    levels: [0.985, 0.004], // s * 0.985 + 0.004
+    overRange: "keep", // minor 29: mix(c, s + max(c - 1, 0), amount) as the page's grade
   } : null;
   renderer.antialias = next.antialias;
   renderer.shadowMap.enabled = next.shadows > 0;
