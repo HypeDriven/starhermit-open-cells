@@ -16,7 +16,7 @@ to put a card that has nowhere to go — Open Cells is the puzzle of spending th
 | Genre | Open-information solitaire / deterministic card puzzle |
 | Players | 1, with asynchronous score comparison |
 | Session | 2 min (a Learn lesson) to ~10 min (a full deal) |
-| Platforms | The StarHermit engine 1.28.0 (script game, host API 1.30, `engine.minor=30`): natively in the StarHermit client and in browsers through the engine's web runtime; desktop and phones, portrait and landscape; keyboard, mouse, touch and gamepad |
+| Platforms | The StarHermit engine 1.29.0 (script game, host API 1.31, `engine.minor=31`): natively in the StarHermit client and in browsers through the engine's web runtime; desktop and phones, portrait and landscape; keyboard, mouse, touch and gamepad |
 | Rendering | `starhermit:scene` desk (the browser build's three.js r152 scene ported as written) under a `starhermit:ui` interface; every card and slot is also a named accessibility target |
 | Persistence | The engine save (`starhermit:storage` `saves`): on the device and, signed in, in the player's cloud slot |
 | Networking | The StarHermit platform through `starhermit:platform` when signed in; guests play fully offline |
@@ -25,7 +25,7 @@ to put a card that has nowhere to go — Open Cells is the puzzle of spending th
 
 | Path | Responsibility |
 |---|---|
-| `starhermit.txt` | Manifest: `launch=index.html`, `engine.api=1`, `engine.entry=native/main.ts`, `engine.version=1.28.0`, `engine.minor=30`, `engine.capabilities=platform,storage,clipboard`, `server=score-script.js`, `cover=cover.jpg`, a `control.*` line and an `engine.gamepad.*` line per action. |
+| `starhermit.txt` | Manifest: `launch=index.html`, `engine.api=1`, `engine.entry=native/main.ts`, `engine.version=1.29.0`, `engine.minor=31`, `engine.capabilities=platform,storage,clipboard`, `server=score-script.js`, `cover=cover.jpg`, a `control.*` line and an `engine.gamepad.*` line per action. |
 | `index.html`, `starhermit-files.json` | The engine's web loader and file index, written by `npm run package` (`starhermit package --web .`); never edited by hand. |
 | `native/main.ts` | Entry module: the app state machine and screen stack, starting every mode, resuming the saved deal, session events (sounds, sparks, nudges, announcements, lessons), selection and moves from taps, drags, double taps, keys and pads (the board cursor), hints, Collect, undo, restart / concede confirmations, the deal clock on fixed steps, results and progression bookkeeping, lifecycle. |
 | `native/screens.ts` | Every screen on `starhermit:ui`: top bar, rails, tray, toasts, the board's named targets and cursor, and the overlay screens (§7). |
