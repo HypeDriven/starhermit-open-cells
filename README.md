@@ -5,14 +5,14 @@ temporary cells, a fully visible eight-column tableau, four suit foundations.
 Everything is deterministic and inspectable: every deal has a seed, every
 result a replayable command log.
 
-A StarHermit engine script game (engine 1.29.0, `engine.minor=31`): played
+A StarHermit engine script game (engine 1.30.0, `engine.minor=32`): played
 natively by the StarHermit client and in browsers by the engine's web runtime
 (`index.html` is the engine's loader, written by `npm run package`).
 
 ## Run
 
 - **Native:** `starhermit .` in this folder (the published runtime, e.g.
-  `~/sh/runtime/1.29.0/starhermit-1.29.0-linux-x86_64/starhermit`).
+  `~/sh/runtime/1.30.0/starhermit-1.30.0-linux-x86_64/starhermit`).
 - **Browser:** serve the folder (`python3 -m http.server`) and open it; the
   loader fetches the pinned engine.
 - `starhermit.txt` declares the manifest, `server=score-script.js` (the

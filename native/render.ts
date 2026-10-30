@@ -120,7 +120,7 @@ const spriteTex = (() => {
 })();
 function envMap(): Texture | null {
   if (!envTexture) {
-    try { envTexture = new PMREMGenerator(renderer).fromScene(new RoomEnvironment(), 0.04).texture; }
+    try { const pageRoom = new RoomEnvironment(); pageRoom.position.y = 0; /* the page's three r152 (pre-r183) builds the room at the origin */ envTexture = new PMREMGenerator(renderer).fromScene(pageRoom, 0.04).texture; }
     catch (e) { console.warn(`environment: ${e instanceof Error ? e.message : String(e)}`); }
   }
   return envTexture;
