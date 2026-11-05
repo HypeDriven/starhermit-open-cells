@@ -769,7 +769,7 @@ export function applyLook(next: Look): void {
   // UnrealBloomPass(0.6, 0.45, threshold 0.9 on the tone-mapped image): the runtime blooms before tone mapping,
   // where ACES at 1.05 reaches 0.9 from about 1.8 — so only the untone-mapped markers and sparks bloom.
   // The page's three r152 UnrealBloomPass(0.6, 0.45, 1.8), drawn by the r160 bloom model (r169 and older) at its strength.
-  renderer.bloom = next.bloom ? { model: "r160", strength: 0.6, radius: 0.45, threshold: 1.8, resolution: next.budget.bloomRes } : null;
+  renderer.bloom = next.bloom === null ? null : { model: "r160", strength: 0.6, radius: 0.45, threshold: 1.8, resolution: next.bloom };
   // GradeShader: 0.18 S-curve, +7 % saturation, cool shadows / warm highlights (smoothstep 0.05–0.6), vignette 0.24.
   renderer.grade = next.grade ? {
     space: "linear", contrast: 0.18, saturation: 1.07, split: [0.05, 0.6], shadows: [0.97, 0.99, 1.04], highlights: [1.03, 1.0, 0.96],
@@ -780,7 +780,7 @@ export function applyLook(next: Look): void {
   renderer.antialias = next.antialias;
   renderer.shadowMap.enabled = next.shadows > 0;
   key.castShadow = next.shadows > 0;
-  if (next.shadows > 0) key.shadow.mapSize = next.shadows;
+  if (next.shadows > 0) key.shadow.mapSize = next.shadows; // the level's size: at this minor the engine keeps what the game sets
   rebuild();
 }
 /** The deal's theme (content.js THEMES: the player's or the stage's). */

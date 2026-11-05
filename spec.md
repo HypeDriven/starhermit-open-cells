@@ -325,17 +325,18 @@ the curve (1.8). The colour grade (0.18 S-curve, +7 % saturation, cool shadows /
 vignette 0.24) is `renderer.grade`; anti-aliasing is FXAA / SMAA / MSAA per tier.
 
 **The look per graphics level** (`native/quality.ts`): the runtime's Options choose the graphics level
-(Auto by the device, or the player's), its tier picks the browser build's preset and budget, and the
-level within the tier scales the spark pool and the dust motes (≤ 2×). Render scale, the pixel-ratio
+(Auto by the device, or the player's), the engine's level table (`levelSettings()`) sets shadows and their map size, bloom, grade and
+anti-aliasing; the tier picks the browser build's art preset and budget, and the level's particle budget against
+the tier's anchor level scales the spark pool and the dust motes (≤ 2×). Render scale, the pixel-ratio
 cap, adaptive resolution, the frame-rate limit and readout are the runtime's; the old Graphics panel's
 per-category overrides are not offered.
 
-| Tier | Shadows | Reflections | Surface detail | Bloom | Grade | AA | Particles | Ambient motion |
-|---|---|---|---|---|---|---|---|---|
-| Low | off | off | Plain | off | off | off | off | off |
-| Balanced | 1024 | on | Detailed | off | on | FXAA | low | off |
-| High | 2048 | on | Detailed | on | on | SMAA | high | on |
-| Ultra | 4096 | on | Detailed | on | on | MSAA | high | on |
+| Tier | Reflections | Surface detail | Particles | Ambient motion |
+|---|---|---|---|---|
+| Low | off | Plain | off | off |
+| Balanced | on | Detailed | low | off |
+| High | on | Detailed | high | on |
+| Ultra | on | Detailed | high | on |
 
 | Budget | Low | Balanced | High | Ultra |
 |---|---|---|---|---|
@@ -347,7 +348,6 @@ per-category overrides are not offered.
 | Lamp-pool grid of the surround | 24×20 | 36×30 | 60×50 | 60×50 |
 | Spark pool at Particles High (Low: ½) | 120 | 200 | 400 | 600 |
 | Dust motes | 30 | 40 | 70 | 120 |
-| Bloom resolution | — | — | ½ | full |
 
 **Visual assets:** the desk key art behind the title, the results flourish behind the results (both
 under a dark scrim, left out in high contrast), and the baked textures (§15). Card faces, the desk and
@@ -364,7 +364,7 @@ or announced equivalent.
 **Buses** are the runtime's (Options › Audio: master, music, effects, interface, the mute and the
 voice limit). Effects play on `effects`; the ambience and music play on `music` (the runtime has no
 ambience bus; the ambience's gain folds in the old ambience default of 40 % against music's 50 %).
-Clips load once the mixer runs (natively at once, in a browser after the first press), one at a time.
+Every clip loads at once on start; the rendered beds wait for the mixer (natively at once, in a browser after the first press).
 The pause screen and a hidden window fade the bed out.
 
 **Music and ambience.** A two-chord sine pad (A-ish / E-ish, a 1.6 s glide every 4 s) behind a

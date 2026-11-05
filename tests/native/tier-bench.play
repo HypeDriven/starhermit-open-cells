@@ -1,0 +1,22 @@
+# Tier bench: the fixed-seed Score Chase deal on the desk, the cursor on a column and a card selected, the lamp and motes running.
+until 600 Daily Deal
+frames 30
+click =Modes
+until 120 Choose a mode
+frames 10
+click =Open Score Chase
+until 120 Roll a random seed
+frames 10
+click Challenge seed
+frames 5
+type brass-owl-42
+frames 5
+click =Play seed
+until 300 chase-brass-owl-42
+frames 120
+measure start
+key ArrowDown 1
+frames 280
+key Enter 1
+frames 320
+measure stop
