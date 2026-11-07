@@ -3,7 +3,7 @@
 // chips, the deal, Menu and Pause), the Objective / Progress rail, the
 // Actions rail (Undo with its key and count, Hint, Collect, Settle, Restart,
 // Concede), the compact tray (Undo, Hint, Collect, Pause; mirrored for the
-// left-handed layout), the refusal toast and the account notice, the board's
+// left-handed layout), the board's
 // named targets (each card and slot, as the DOM board's buttons were: screen
 // readers and play scripts find them) with the keyboard cursor, and every
 // overlay screen (title over the key art, mode cards, Journey grid, stage /
@@ -33,10 +33,8 @@ import { token } from "./style.ts";
 // ------------------------------------------------------------------ layout
 interface Layout { lw: number; lh: number; sc: number; wide: boolean; landscape: boolean }
 function layoutNow(): Layout {
-  const f = frame();
-  const sc = ui.preferences().scale;
-  const sa = f.safeArea;
-  const lw = Math.max(1, (f.width - sa.left - sa.right) / sc), lh = Math.max(1, (f.height - sa.top - sa.bottom) / sc);
+  const v = ui.viewport!();
+  const lw = Math.max(1, v.width), lh = Math.max(1, v.height), sc = v.scale;
   return { lw, lh, sc, wide: lw >= 1024, landscape: lw < 1024 && lw > lh };
 }
 const lastSize = new Map<string, number>();
@@ -93,7 +91,6 @@ export function drawScreens(): void {
   const f = frame();
   playScreen(L);
   boardTargets();
-  toasts(L);
   screens(L);
   if (app.focusNext) {
     const age = f.frame - app.openedFrame;
@@ -331,21 +328,6 @@ function boardTargets(): void {
       });
       ui.target(cursorWords(), { x: r.x, y: r.y, width: 1, height: 1 }, { role: "label" });
     }
-  }
-}
-
-// ------------------------------------------------------------------ toasts
-function toasts(L: Layout): void {
-  const f = frame(), sc = L.sc;
-  if (app.toast && !app.screens.length) {
-    const w = Math.min(view.width / sc * 0.9, 380);
-    ui.place("toast", { anchor: "bottom", y: (f.height - view.y - view.height) / sc + 16 }, () =>
-      ui.column("toast-col", () => para(app.toast!.text, w - 34, "toast-text", "toast-text"), { style: "toast", align: "center" }));
-  }
-  if (app.notice) {
-    const w = Math.min(L.lw * 0.9, 420);
-    ui.place("oc-toast", { anchor: "bottom", y: 16 }, () =>
-      ui.column("oc-toast-col", () => para(app.notice!.text(), w - 34, "oc-toast-text", "oc-toast-text"), { style: "oc-toast", align: "center" }));
   }
 }
 

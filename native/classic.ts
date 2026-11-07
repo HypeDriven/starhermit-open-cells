@@ -3,16 +3,13 @@
 // terminal reasons, hints, serialization), the versioned content
 // (src/content.js: lessons, the 40 Journey stages, the Daily, challenges,
 // practice difficulties, themes, achievements), the session (src/session.js:
-// validated commands, undo, replay envelopes, hints, lesson steps), the save
-// document and options (src/store.js), the string tables (src/locales/*.js
-// through src/i18n.js) and the account strings (src/sh-strings.js), evaluated
+// validated commands, undo, replay envelopes, hints, lesson steps) and the save
+// document and options (src/store.js), evaluated
 // as classic scripts so their globals are this module's exports.
 import { loadClassic } from "starhermit:script";
 
 for (const f of [
   "src/rules.js", "src/content.js", "src/session.js", "src/store.js",
-  "src/locales/en-GB.js", "src/locales/es.js", "src/locales/de.js", "src/locales/fr.js", "src/locales/pt.js", "src/locales/it.js",
-  "src/i18n.js", "src/sh-strings.js",
 ]) loadClassic(f);
 
 // -- The shapes this client reads -------------------------------------------------
@@ -100,20 +97,11 @@ interface StoreApi {
   PALETTES: string[]; THEME_IDS: string[]; DEFAULT_OPTIONS: Options; OPTION_KEYS: (keyof Options)[];
   pickOptions(raw: unknown): Partial<Options>; BROWSER_KEYS: string[];
 }
-interface I18nApi {
-  LOCALES: string[];
-  T(key: string, vars?: Record<string, string | number> | null): string;
-  setLocale(tag: string): void;
-  lang(): string;
-}
-interface ShApi { LOCALES: string[]; shStrings(locale: string): Record<string, string> }
 
 const g = globalThis as unknown as {
-  OCRules: RulesApi; OCContent: ContentApi; OCSession: SessionApi; OCStore: StoreApi; OCI18n: I18nApi; OCShStrings: ShApi;
+  OCRules: RulesApi; OCContent: ContentApi; OCSession: SessionApi; OCStore: StoreApi;
 };
 export const Rules = g.OCRules;
 export const Content = g.OCContent;
 export const Sess = g.OCSession;
 export const Store = g.OCStore;
-export const I18n = g.OCI18n;
-export const ShStrings = g.OCShStrings;

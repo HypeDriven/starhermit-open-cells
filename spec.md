@@ -28,17 +28,17 @@ to put a card that has nowhere to go — Open Cells is the puzzle of spending th
 | `starhermit.txt` | Manifest: `launch=index.html`, `engine.api=1`, `engine.entry=native/main.ts`, `engine.version=1.38.0`, `engine.minor=38`, `engine.capabilities=platform,storage,clipboard`, `server=score-script.js`, `cover=cover.jpg`, a `control.*` line and an `engine.gamepad.*` line per action. |
 | `index.html`, `starhermit-files.json` | The engine's web loader and file index, written by `npm run package` (`starhermit package --web .`); never edited by hand. |
 | `native/main.ts` | Entry module: the app state machine and screen stack, starting every mode, resuming the saved deal, session events (sounds, sparks, nudges, announcements, lessons), selection and moves from taps, drags, double taps, keys and pads (the board cursor), hints, Collect, undo, restart / concede confirmations, the deal clock on fixed steps, results and progression bookkeeping, lifecycle. |
-| `native/screens.ts` | Every screen on `starhermit:ui`: top bar, rails, tray, toasts, the board's named targets and cursor, and the overlay screens (§7). |
+| `native/screens.ts` | Every screen on `starhermit:ui`: top bar, rails, tray, the board's named targets and cursor, and the overlay screens (§7). |
 | `native/render.ts` | The desk on `starhermit:scene`: camera framing in the playfield rectangle, desk geometry and materials, cards with atlas faces, selection / target rings, tweens, sparks, motes, nudge, picking and dragging, the look per quality tier. |
 | `native/quality.ts` | The browser build's presets and budgets (`src/gfx.js`) keyed by the runtime's quality tier and level. |
-| `native/audio.ts` | One-shots from `sfx/`, the ambience and music pad rendered to looped clips. |
+| `native/audio.ts` | One-shots from `sfx/`, the ambience and music pad rendered offline (`OfflineAudioContext`) to looped clips. |
 | `native/platform.ts` | The save `{ save, boards }` with conflict merge and old cloud-slot migration, the game's options as engine settings (legacy KV adoption and removal), player, invite link, platform clock, score posting, leaderboard reads. |
 | `native/i18n.ts`, `native/style.ts`, `native/classic.ts` | Interface language → string tables; the converted style sheet with theme / contrast / palette tokens; loading the classic scripts below with their types. |
 | `src/rules.js` | Pure engine: deal, legality, supermove capacity, safe autoplay, scoring, terminal reasons, hashing, seeded RNG. |
 | `src/session.js` | Validated commands, undo snapshots, replay envelope + `validateReplay`, hints, lesson tracking, event emission. |
 | `src/content.js` | 6 lessons, 40 journey stages, 6 challenges, 3 practice difficulties, daily derivation, 5 themes, 5 achievements. |
 | `src/store.js` | The save document (empty / migrate / merge), local boards (add / merge), the old cloud slot reader, option validation. |
-| `src/i18n.js`, `src/locales/*.js`, `src/sh-strings.js` | Localization core (`T()`), the nine locales' tables, the account controls' strings. |
+| `assets/strings.json` | The nine locales' tables, loaded by `native/i18n.ts` through the engine's `strings` (account lines are its `starhermit.*` keys). |
 | `score-script.js` | StarHermit platform script (`server=score-script.js`): range-checks a finished ranked deal's total and posts it to the `high-score` leaderboard. |
 | `tools/ui-style.css` → `assets/ui-style.json` | The class-based style sheet and its `starhermit css` conversion (`npm run css`). |
 | `tools/bake-textures.mjs` → `assets/textures/` | The old canvas painters run in Chrome: card-face atlases per theme, palette and surface detail; slate, felt and wood textures. |
@@ -322,7 +322,7 @@ wood-grain textures (with the fine bump on High and Ultra) and draws the faces a
 and a gilt inner rule. Bloom (High, Ultra) reaches only the untone-mapped accents (selection / target
 rings, sparks): the runtime blooms before tone mapping, so the old 0.9 threshold is taken back through
 the curve (1.8). The colour grade (0.18 S-curve, +7 % saturation, cool shadows / warm highlights,
-vignette 0.24) is `renderer.grade`; anti-aliasing is FXAA / SMAA / MSAA per tier.
+vignette 0.24) is `renderer.grade`; anti-aliasing is the level's (`levelSettings().antialias`; Low is off).
 
 **The look per graphics level** (`native/quality.ts`): the runtime's Options choose the graphics level
 (Auto by the device, or the player's), the engine's level table (`levelSettings()`) sets shadows and their map size, bloom, grade and
@@ -411,9 +411,8 @@ Every player-facing string ships in all nine locales: every screen, the bars, ra
 board targets' names (card names such as "six of spades" composed per locale), toasts and
 announcements, confirmations, the rules and session refusal sentences (`src/rules.js` /
 `src/session.js` keep English sentences; `native/main.ts` translates them, including the two with
-numbers), and the content tables. Strings are keyed by their US-English text in `src/locales/*.js`
-(es-ES and fr-CA list only their differences, en-GB only its spelling changes); the account strings
-live in `src/sh-strings.js`. The game name, seeds, deal ids and card faces stay as they are.
+numbers), and the content tables. Strings are keyed by their US-English text in `assets/strings.json`
+(en-GB lists only its spelling changes); the account strings are the engine's `starhermit.*` keys. The game name, seeds, deal ids and card faces stay as they are.
 `tests/i18n.test.js` checks that every key used in `native/*.ts` and the content (extracted by
 `tests/i18n-keys.js`) exists in all nine locales with the same placeholders and that no table carries
 stale keys.

@@ -63,9 +63,6 @@ export const app = {
   cursor: null as { zone: Loc["zone"]; index: number; depth: number } | null,
   results: null as Results | null,
   lb: null as platform.Posted | "posting" | null,
-  /** The old #toast (refusals) and .oc-toast (account notices). */
-  toast: null as { text: string; until: number } | null,
-  notice: null as { text: () => string; until: number } | null,
   chaseSeed: "",
 };
 const now = (): number => frame().time;
@@ -75,8 +72,15 @@ export const fresh = (): boolean => frame().frame !== app.openedFrame;
 export function announce(text: string, assertive = false): void {
   if (text) ui.announce(text.slice(0, 500), { politeness: assertive ? "assertive" : "polite" });
 }
-function toast(text: string): void { app.toast = { text, until: now() + 2.6 }; }
-export function notice(text: () => string): void { app.notice = { text, until: now() + 3.2 }; announce(text()); }
+let refusal: ui.Toast | null = null;
+/** The old #toast: a refusal above the playfield's bottom edge (the caller announces it); gone when a screen opens. */
+function toast(text: string): void {
+  refusal?.dismiss();
+  refusal = ui.toast!(text, { duration: 2.6, style: ["toast", "toast-text"], dismissible: false, announce: false, position: "bottom",
+    offset: (frame().height - view.y - view.height) / ui.preferences().scale });
+}
+/** The old .oc-toast: an account notice at the window's bottom. */
+export function notice(text: string): void { ui.toast!(text, { duration: 3.2, style: ["oc-toast", "oc-toast-text"], dismissible: false, position: "bottom" }); }
 function haptic(ms: number): void { if (platform.options.haptics) { try { vibrate(ms); } catch { /* no motor */ } } }
 function cmdId(): string { return `c${++app.cmdSeq}`; }
 /** Rules/session refusals carry English sentences; two embed numbers (main.js refusalText). */
@@ -142,7 +146,7 @@ export const actions = {
   invite(): void {
     const link = platform.inviteLink();
     if (!link) return;
-    try { clipboard.writeText(link); notice(() => S("copied")); } catch { notice(() => S("copyFailed")); }
+    try { clipboard.writeText(link); notice(S("inviteCopied")); } catch { notice(S("inviteFailed")); }
   },
 };
 
@@ -403,8 +407,8 @@ function postHighScore(ranked: boolean, total: number): void {
 export function leaderboardLine(): string | null {
   const r = app.lb;
   if (!r) return null;
-  if (r === "posting") return S("lbPosting");
-  return !r.posted ? S("lbNotPosted") : r.rank ? S("lbRank", { rank: r.rank }) : S("lbPosted");
+  if (r === "posting") return S("leaderboardPosting");
+  return !r.posted ? S("leaderboardNotPosted") : r.rank ? S("leaderboardRank", { rank: r.rank }) : S("leaderboardPosted");
 }
 function unlock(key: string): Achievement | null {
   const save = platform.save();
@@ -798,7 +802,7 @@ onStart(() => {
 onPreferencesChange((p) => render.setReducedMotion(p.reducedMotion));
 platform.onOptionsChange(() => applyOptions());
 platform.onProgressMerged(() => { if (top()?.name === "title") announce(T("Progress restored from your StarHermit cloud save.")); });
-onSessionEnded(() => notice(() => S("signedOut"))); // keep playing locally
+onSessionEnded(() => notice(S("signedOut"))); // keep playing locally
 onSuspend(() => {
   hidden = true;
   // Backgrounding pauses the deal (the player resumes from the pause screen).
@@ -815,9 +819,7 @@ onUpdate((dt) => {
   applyLook();
   applyTokens(themeFor(app.session ? app.config : null), ui.preferences().highContrast, platform.options.colorPalette);
   audio.update();
-  const t = now();
-  if (app.toast && app.toast.until < t) app.toast = null;
-  if (app.notice && app.notice.until < t) app.notice = null;
+  if (refusal && app.screens.length) { refusal.dismiss(); refusal = null; }
 });
 const pending: (() => void)[] = [];
 /** A widget's press, run once the frame's UI is built (state changes mid-build would break later widgets). */

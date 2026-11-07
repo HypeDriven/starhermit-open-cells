@@ -1,52 +1,30 @@
-// Localization: the browser build's string tables (src/locales/*.js through
-// src/i18n.js: the nine StarHermit locales, US-English text as the key) and
-// the account-control strings (src/sh-strings.js), in the interface language
-// the runtime reports (preferences().language: the player's choice in
-// Options › Language, else the account's preferred language or the device's).
-// The runtime's Options replaced the game's Language setting (sh-language.js)
-// and the DOM re-labelling: every string is drawn through T() each frame, so a
-// change shows on the next frame.
-import { onPreferencesChange, preferences } from "starhermit:engine";
+// Localization: the engine's string tables (assets/strings.json: the nine
+// StarHermit locales, US-English text as the key) in the interface language the
+// runtime reports (the player's choice in Options › Language, else the account's
+// preferred language or the device's). The runtime's Options replaced the game's
+// Language setting (sh-language.js) and the DOM re-labelling: every string is
+// drawn through T() each frame, so a change shows on the next frame. The account
+// lines are the engine's `starhermit.*` keys.
+import { strings } from "starhermit:engine";
 import * as ui from "starhermit:ui";
-import { I18n, Rules, ShStrings } from "./classic.ts";
+import { Rules } from "./classic.ts";
 
-const PRIMARY: Record<string, string> = { en: "en-US", es: "es-419", de: "de-DE", fr: "fr-FR", pt: "pt-BR", it: "it-IT" };
-
-/** The shipped locale nearest a BCP 47 tag (en-GB, es-ES and fr-CA by region; es-MX → es-419). */
-export function pickLocale(tag: string): string {
-  const s = String(tag || "en-US");
-  const exact = I18n.LOCALES.find((l) => l.toLowerCase() === s.toLowerCase());
-  if (exact) return exact;
-  const lang = s.split("-")[0]!.toLowerCase();
-  if (lang === "en" && /-(gb|uk|ie|au|nz|za|in)$/i.test(s)) return "en-GB";
-  if (lang === "es" && /-es$/i.test(s)) return "es-ES";
-  if (lang === "fr" && /-ca$/i.test(s)) return "fr-CA";
-  return PRIMARY[lang] ?? "en-US";
-}
-
-let locale = "";
-function apply(tag: string): void {
-  const next = pickLocale(tag);
-  if (next === locale) return;
-  I18n.setLocale(next);
-  locale = I18n.lang();
-  ui.setLanguage(locale);
-}
-apply(preferences().language);
-onPreferencesChange((p) => apply(p.language));
-export function currentLocale(): string { return locale; }
+strings.load("assets/strings.json");
+strings.defaultLocale = "en-US";
+ui.setLanguage(strings.locale);
+strings.onChange((locale) => ui.setLanguage(locale));
 
 export type Vars = Record<string, string | number>;
 /** A game string by its English key in the player's language; `{name}` placeholders from vars. */
-export function T(key: string, vars?: Vars | null): string { return I18n.T(key, vars ?? null); }
+export function T(key: string, vars?: Vars | null): string {
+  const k = String(key ?? "");
+  if (strings.has(k)) return strings.t(k, vars ?? undefined);
+  return vars ? k.replace(/\{(\w+)\}/g, (m, n: string) => (vars[n] != null ? String(vars[n]) : m)) : k;
+}
 /** Marks an English key; translated with T() where it is shown. */
 export const N = (key: string): string => key;
-/** The account controls' strings (signIn, invite, copied, copyFailed, signedOut, lbPosting, lbRank, lbPosted, lbNotPosted). */
-export function S(key: string, vars?: Vars): string {
-  let s = ShStrings.shStrings(locale)[key] ?? key;
-  if (vars) for (const [k, v] of Object.entries(vars)) s = s.replace(`{${k}}`, String(v));
-  return s;
-}
+/** An account line: the engine's `starhermit.*` strings (signIn, invite, inviteCopied, inviteFailed, signedOut, leaderboardPosting, leaderboardRank, leaderboardPosted, leaderboardNotPosted). */
+export function S(key: string, vars?: Vars): string { return strings.t(`starhermit.${key}`, vars); }
 
 const SUIT_WORDS = [N("spades"), N("hearts"), N("diamonds"), N("clubs")];
 const RANK_WORDS = [N("ace"), N("two"), N("three"), N("four"), N("five"), N("six"), N("seven"), N("eight"), N("nine"), N("ten"), N("jack"), N("queen"), N("king")];

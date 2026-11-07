@@ -5,16 +5,16 @@
 // filter opening and a fourth voice rising — 440 Hz, a third or a fifth
 // higher near the end — as cards go home). The browser build ran both live
 // (oscillators and a noise loop); here they are rendered once into clips
-// (createClip, a slice a frame) and looped on the music bus (the runtime has
+// (OfflineAudioContext, from onStart) and looped on the music bus (the runtime has
 // no ambience bus; the ambience's gain folds in the old ambience slider's 40 %
 // default against music's 50 %), and the pad's filter sweep becomes its level.
 // The runtime's Options own the volumes, the mute and the voice limit. The
 // oscillator blips the browser build synthesized while a sample decoded are
 // not ported (a live synthesis graph makes clip loads fail on the engine's web
 // runtime), so a clip still loading is silent. Every clip loads at once from
-// onStart; the rendered beds wait for the mixer (natively at once, in a browser
+// onStart; the rendered beds start once the mixer runs (natively at once, in a browser
 // after the first press).
-import { context, createClip, loadClip, play as playClip, type AudioClip, type Sound } from "starhermit:audio";
+import { context, createClip, loadClip, OfflineAudioContext, play as playClip, type AudioClip, type Sound } from "starhermit:audio";
 
 /** audio.js SAMPLE_BY_EVENT. */
 const SFX: Record<string, string> = {
@@ -26,11 +26,15 @@ export type Sfx = keyof typeof SFX;
 const clips = new Map<string, AudioClip>();
 let suspended = false;
 
-/** Loads every clip at once (onStart); a cue whose clip is still loading is silent. */
+/** Loads every clip and renders the beds at once (onStart); a cue whose clip is still loading is silent. */
 export function loadSfx(): void {
   for (const n of new Set(Object.values(SFX))) {
     loadClip(`sfx/${n}.opus`).then((c) => { clips.set(n, c); }, (e: unknown) => { console.warn(`sfx ${n}: ${String(e)}`); });
   }
+  const failed = (e: unknown): void => { console.warn(`audio: ${String(e)}`); };
+  renderAmbience().then((c) => { ambClip = c; }, failed);
+  renderPad().then((c) => { padClip = c; }, failed);
+  renderVoice().then((c) => { voiceClip = c; }, failed);
 }
 
 /** audio.js play(event). */
@@ -45,56 +49,41 @@ export function play(event: Sfx): void {
 
 // -- the ambience and the music -----------------------------------------------------------------
 const RATE = 22050;
-const AMB_N = RATE * 2;
-const amb = new Float32Array(AMB_N);
-let ambPos = 0, ambLast = 0, ambS = 7, ambY = 0;
-/** audio.js startAmbience: brown-ish noise (seed 7), then a one-pole 320 Hz lowpass run twice round so the loop joins. */
-function renderAmbience(count: number): boolean {
-  const k = 1 - Math.exp((-2 * Math.PI * 320) / RATE);
-  const end = Math.min(2 * AMB_N, ambPos + count);
-  for (; ambPos < end; ambPos++) {
-    const i = ambPos % AMB_N;
-    if (ambPos < AMB_N) {
-      ambS = (Math.imul(ambS, 1664525) + 1013904223) >>> 0;
-      const white = (ambS / 4294967296) * 2 - 1;
-      ambLast = (ambLast + 0.02 * white) / 1.02;
-      amb[i] = ambLast * 2.4;
-    } else {
-      ambY += k * (amb[i]! - ambY);
-      amb[i] = ambY;
-    }
-  }
-  return ambPos >= 2 * AMB_N;
+// Make-up: the engine's brown noise reads +4.3 dB against the old renderer (rms 0.2035 vs 0.1237).
+const AMB_GAIN = 0.608;
+/** audio.js startAmbience: brown noise (seed 7), lowpassed at 320 Hz; filtered periodic noise is periodic once settled, so the loop joins. */
+async function renderAmbience(): Promise<AudioClip> {
+  const n = 2 * RATE, settle = Math.round(0.25 * RATE);
+  const off = new OfflineAudioContext(1, settle + n, RATE);
+  const noise = off.createNoise({ color: "brown", seed: 7, seconds: 2 });
+  const lp = off.createBiquadFilter(); lp.type = "lowpass"; lp.frequency.value = 320;
+  const g = off.createGain(); g.gain.value = AMB_GAIN;
+  noise.connect(lp).connect(g).connect(off.destination); noise.start();
+  const r = await off.startRendering();
+  return createClip([r.getChannelData(0).slice(settle)], RATE);
 }
 const CHORDS = [[220, 277.2, 329.6], [196, 246.9, 293.7]];
-const PAD_N = RATE * 8;
-const pad = new Float32Array(PAD_N);
-let padPos = 0;
-const phase = [0, 0, 0];
 /** audio.js startMusic: three sines at 0.05, gliding to the next chord over 1.6 s every 4 s (an 8 s cycle). */
-function renderPad(count: number): boolean {
-  const end = Math.min(PAD_N, padPos + count);
-  for (; padPos < end; padPos++) {
-    const t = padPos / RATE;
-    const step = Math.floor(t / 4), local = t - step * 4;
-    const from = CHORDS[(step + 1) % 2]!, to = CHORDS[step % 2]!;
-    const k = Math.min(1, local / 1.6);
-    let v = 0;
-    for (let j = 0; j < 3; j++) {
-      const f = from[j]! + (to[j]! - from[j]!) * k;
-      phase[j] = (phase[j]! + f / RATE) % 1;
-      v += Math.sin(phase[j]! * 2 * Math.PI) * 0.05;
-    }
-    pad[padPos] = v;
+async function renderPad(): Promise<AudioClip> {
+  const off = new OfflineAudioContext(1, 8 * RATE, RATE);
+  const g = off.createGain(); g.gain.value = 0.05; g.connect(off.destination);
+  for (let j = 0; j < 3; j++) {
+    const a = CHORDS[0]![j]!, b = CHORDS[1]![j]!;
+    const osc = off.createOscillator();
+    osc.frequency.setValueAtTime(b, 0); osc.frequency.linearRampToValueAtTime(a, 1.6);
+    osc.frequency.setValueAtTime(a, 4); osc.frequency.linearRampToValueAtTime(b, 5.6);
+    osc.connect(g); osc.start();
   }
-  return padPos >= PAD_N;
+  return createClip(await off.startRendering());
 }
 /** The fourth voice: 440 Hz for exactly 440 cycles (1 s), pitched up for the end game. */
-const VOICE = (() => {
-  const n = RATE, out = new Float32Array(n);
-  for (let i = 0; i < n; i++) out[i] = Math.sin((2 * Math.PI * 440 * i) / RATE) * 0.05;
-  return out;
-})();
+async function renderVoice(): Promise<AudioClip> {
+  const off = new OfflineAudioContext(1, RATE, RATE);
+  const osc = off.createOscillator(); osc.frequency.value = 440;
+  const g = off.createGain(); g.gain.value = 0.05;
+  osc.connect(g).connect(off.destination); osc.start();
+  return createClip(await off.startRendering());
+}
 let ambClip: AudioClip | null = null, padClip: AudioClip | null = null, voiceClip: AudioClip | null = null;
 let ambVoice: Sound | null = null, padVoice: Sound | null = null, topVoice: Sound | null = null;
 let intensity = 0;
@@ -121,32 +110,16 @@ export function setSuspended(on: boolean): void {
   } catch { /* gone */ }
 }
 
-/** Each frame, once the mixer runs: the ambience and the music. */
+/** Each frame, once the mixer runs: the ambience and the music, as their renders finish. */
 export function update(): void {
   if (context.state !== "running") return;
-  if (!ambClip) {
-    if (!renderAmbience(8000)) return;
-    try { ambClip = createClip([amb], RATE); } catch (e) { console.warn(`audio: ${String(e)}`); ambPos = 0; }
-    return;
-  }
-  if (!ambVoice) {
+  if (ambClip && !ambVoice) {
     try { ambVoice = playClip(ambClip, { bus: "music", gain: suspended ? 0 : 0.8, loop: true }); } catch { ambVoice = null; }
-    return;
   }
-  if (!padClip) {
-    if (!renderPad(6000)) return;
-    try { padClip = createClip([pad], RATE); } catch (e) { console.warn(`audio: ${String(e)}`); padPos = 0; }
-    return;
-  }
-  if (!padVoice) {
+  if (padClip && !padVoice) {
     try { padVoice = playClip(padClip, { bus: "music", gain: suspended ? 0 : padGain(), loop: true }); } catch { padVoice = null; }
-    return;
   }
-  if (!voiceClip) {
-    try { voiceClip = createClip([VOICE], RATE); } catch (e) { console.warn(`audio: ${String(e)}`); }
-    return;
-  }
-  if (!topVoice) {
+  if (voiceClip && !topVoice) {
     try {
       topVoice = playClip(voiceClip, { bus: "music", gain: suspended ? 0 : intensity, loop: true });
       topVoice.setPitch(intensity > 0.8 ? 1.5 : intensity > 0.5 ? 1.25 : 1);
