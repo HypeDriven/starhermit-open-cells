@@ -1,3 +1,7 @@
+import { localizedStyle as __l10nStyle } from "./l10n/font.ts";
+import { localizedDrawOptions as __l10nDrawOptions } from "./l10n/font.ts";
+// localization-runtime:attached
+import { openLocalizedOptions as __l10nOptions } from "./l10n/menu.ts";
 // The browser build's DOM shell (index.html + src/ui.js) as starhermit:ui,
 // built every frame over the desk: the top bar (brand, player and cloud-sync
 // chips, the deal, Menu and Pause), the Objective / Progress rail, the
@@ -15,7 +19,24 @@
 // the tray below) and compact landscape (a 150 px rail and the tray). The
 // desk is framed in the playfield rectangle left between them (main.ts view
 // → render.ts).
-import { frame, openMenu } from "starhermit:engine";
+// The browser build's DOM shell (index.html + src/ui.js) as starhermit:ui,
+// built every frame over the desk: the top bar (brand, player and cloud-sync
+// chips, the deal, Menu and Pause), the Objective / Progress rail, the
+// Actions rail (Undo with its key and count, Hint, Collect, Settle, Restart,
+// Concede), the compact tray (Undo, Hint, Collect, Pause; mirrored for the
+// left-handed layout), the board's
+// named targets (each card and slot, as the DOM board's buttons were: screen
+// readers and play scripts find them) with the keyboard cursor, and every
+// overlay screen (title over the key art, mode cards, Journey grid, stage /
+// practice / challenge / daily / Score Chase setups, Learn, pause, Settings,
+// How to play, Scores & achievements, results over the flourish, and the
+// confirmations that replace window.confirm()). The old media queries are
+// layouts picked by the window's logical size: wide (≥ 1024 px: both rails
+// beside the table), compact portrait (the rail as a strip above the table,
+// the tray below) and compact landscape (a 150 px rail and the tray). The
+// desk is framed in the playfield rectangle left between them (main.ts view
+// → render.ts).
+import { frame } from "starhermit:engine";
 import { bindings, requestRebind } from "starhermit:input";
 import * as draw from "starhermit:draw";
 import * as ui from "starhermit:ui";
@@ -52,18 +73,18 @@ function button(b: Btn, width: number | null = null): void {
   if (b.kbd || b.pill) {
     opts.content = () => ui.row(`${b.id}-face`, () => {
       ui.label(b.text);
-      if (b.kbd) ui.column(`${b.id}-kbd`, () => ui.style("kbd-text").label(b.kbd!), { style: "kbd" });
-      if (b.pill) ui.column(`${b.id}-pill`, () => ui.style("pill-text").label(b.pill!), { style: "pill" });
+      if (b.kbd) ui.column(`${b.id}-kbd`, () => ui.style(__l10nStyle("kbd-text")).label(b.kbd!), { style: "kbd" });
+      if (b.pill) ui.column(`${b.id}-pill`, () => ui.style(__l10nStyle("pill-text")).label(b.pill!), { style: "pill" });
     }, { spacing: 6, align: "center" });
   } else if (b.name && b.name !== b.text) {
     // A face label takes the button's colour but not its weight: dark bold text on the brass buttons.
     const dark = style === "btn-primary" || style === "btn-play";
-    opts.content = () => { ui.style(dark ? { text: { color: "#141414", weight: "bold" } } : {}).label(b.text); };
+    opts.content = () => { ui.style(__l10nStyle(dark ? { text: { color: "#141414", weight: "bold" } } : {})).label(b.text); };
   } else if (width != null && buttonWidth(b.text, style) > width) {
     const inner = Math.max(20, width - 20);
-    opts.content = () => { ui.style({ text: { align: "center" } }).paragraph(b.text, inner); };
+    opts.content = () => { ui.style(__l10nStyle({ text: { align: "center" } })).paragraph(b.text, inner); };
   }
-  if (ui.style(style, s).id(b.id).button(b.name ?? b.text, opts) && fresh()) later(b.act);
+  if (ui.style(__l10nStyle(style), __l10nStyle(s)).id(b.id).button(b.name ?? b.text, opts) && fresh()) later(b.act);
 }
 /** Buttons at their own widths in rows that wrap at `width` (index.html .title-row). */
 function flow(label: string, list: Btn[], width: number, gap = 10, justify: "start" | "center" | "end" = "center"): ui.Rect {
@@ -74,14 +95,14 @@ function flow(label: string, list: Btn[], width: number, gap = 10, justify: "sta
 /** Text up to `width` wide: one label when it fits, else a paragraph. */
 function para(text: string, width: number, cls = "text", id?: string): void {
   if (!text) return;
-  let u = ui.style(cls);
+  let u = ui.style(__l10nStyle(cls));
   if (id) u = u.id(id);
   if (textWidth(text, cls) <= width) u.label(text);
   else u.paragraph(text, Math.max(20, width));
 }
 function heading(cls: string, text: string, width: number, id?: string): void {
   if (textWidth(text, cls, "heading") <= width) (id ? ui.id(id) : ui).style(cls).heading(text);
-  else ui.style(cls).paragraph(text, width);
+  else ui.style(__l10nStyle(cls)).paragraph(text, width);
 }
 function rect(r: ui.Rect): void { hudRects.push({ x: r.x, y: r.y, width: r.width, height: r.height }); }
 
@@ -151,7 +172,7 @@ function playScreen(L: Layout): void {
   // ---- top bar
   const bar = ui.place("topbar", { anchor: "top-start", x: 0, y: 0 }, () => {
     ui.row("topbar-row", () => {
-      ui.style("brand").label("Open Cells");
+      ui.style(__l10nStyle("brand")).label("Open Cells");
       const name = platform.signedIn() ? platform.displayName() || T("Player") : "";
       const sync = platform.syncState();
       const syncText = sync === "saving" || sync === "syncing" ? T("saving…") : sync === "synced" ? T("cloud save ✓") : sync === "offline" ? T("sync failed") : "";
@@ -162,7 +183,7 @@ function playScreen(L: Layout): void {
         const w = textWidth(text, cls);
         if (used + w > room) return; // narrow phones: chips give way so Menu / Pause stay clear
         used += w + 16;
-        ui.style(cls).id(id).label(text);
+        ui.style(__l10nStyle(cls)).id(id).label(text);
       };
       chip("hud-player", name, "status");
       chip("hud-sync", syncText, sync === "synced" ? "status-ok" : sync === "offline" ? "status-err" : "status-dim");
@@ -411,7 +432,7 @@ function build(s: Screen, w: number, L: Layout): void {
 function titleScreen(w: number): void {
   const save = platform.save();
   ui.column("title-hero", () => {
-    ui.style("wordmark").id("wordmark").label("Open Cells");
+    ui.style(__l10nStyle("wordmark")).id("wordmark").label("Open Cells");
     para(T("A brass-and-slate card puzzle. Four cells. Fifty-two cards. No hidden information."), w, "tag", "title-tag");
   }, { width: w, align: "center", spacing: 6 });
   ui.row("title-play", () => {
@@ -482,12 +503,12 @@ function journeyScreen(w: number): void {
       + (rec ? T(", completed, {stars} of 3 stars", { stars: rec.stars }) : unlocked ? T(", unlocked") : T(", locked"));
     const opts: ui.ButtonOptions = {
       content: () => ui.column(`j${st.n}-face`, () => {
-        ui.style("journey-n").label(String(st.n));
-        if (stars) ui.style("journey-stars").label(stars);
+        ui.style(__l10nStyle("journey-n")).label(String(st.n));
+        if (stars) ui.style(__l10nStyle("journey-stars")).label(stars);
       }, { align: "center", spacing: 2 }),
     };
     if (!unlocked) opts.disabled = true;
-    if (ui.style(cls, { width: cw, height: Math.max(64, cw) }).id(`stage-${st.n}`).button(name, opts) && fresh() && unlocked) later(() => openScreen({ name: "stage-setup", stage: st }));
+    if (ui.style(__l10nStyle(cls), __l10nStyle({ width: cw, height: Math.max(64, cw) })).id(`stage-${st.n}`).button(name, opts) && fresh() && unlocked) later(() => openScreen({ name: "stage-setup", stage: st }));
   });
 }
 function constraintSummary(c: Constraints): string {
@@ -515,7 +536,7 @@ function lessonRow(id: string, w: number, status: string | null, title: string, 
   const sw = status ? 26 : 0;
   const tw = w - 28 - bw - sw - 26;
   ui.row(id, () => {
-    if (status) ui.column(`${id}-s`, () => ui.style("lesson-status").label(status), { width: sw });
+    if (status) ui.column(`${id}-s`, () => ui.style(__l10nStyle("lesson-status")).label(status), { width: sw });
     ui.column(`${id}-t`, () => { para(title, tw, "strong"); para(text, tw, "dim-small"); }, { width: tw, spacing: 2 });
     button(b);
   }, { style: "lesson-row", width: w, spacing: 13, align: "center" });
@@ -606,7 +627,7 @@ function toggle(id: string, label: string, desc: string, on: boolean, w: number,
         const s = st.scale, box = 22 * s, bx = r.x + (r.width - box) / 2, by = r.y + (r.height - box) / 2;
         draw.roundRect(bx, by, box, box, 4, on ? token("accent") : token("panel-2"));
         draw.strokeRoundRect(bx, by, box, box, 4, token("trim"), 1);
-        if (on) draw.text("✓", bx + box / 2, by + 1 * s, { size: 17 * s, color: "#141414", align: "center", weight: "bold" });
+        if (on) draw.text("✓", bx + box / 2, by + 1 * s, __l10nDrawOptions({ size: 17 * s, color: "#141414", align: "center", weight: "bold" }));
       },
     });
     if (res.activated && fresh()) later(() => set(!on));
@@ -617,7 +638,7 @@ function settingsScreen(w: number): void {
   const o = platform.options;
   para(T("Sound, graphics, language, larger text, high contrast and reduced motion are in the StarHermit Options."), w, "dim", "options-note");
   flow("settings-runtime", [
-    { id: "btn-options", text: T("Open Options"), act: () => openMenu() },
+    { id: "btn-options", text: T("Open Options"), act: () => __l10nOptions() },
     { id: "btn-rebind", text: T("Key bindings"), act: () => requestRebind() },
   ], w, 10, "start");
   group("set-graphics", N("Graphics"), w, () => {

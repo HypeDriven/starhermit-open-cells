@@ -552,3 +552,11 @@ results carry a replay envelope that `validateReplay` accepts.
 1. **"No moves left" detection** — announce it and offer Undo or Concede.
 2. **Voice bus content** — nothing is routed to the interface bus yet.
 3. **A brass card back** for face-down states; the desk has no face-down card.
+
+<!-- regional-localization:start -->
+
+### Regional interface languages
+
+The string tables include complete regional variants for `fr-BE`, `de-BE`, `en-SG`, `en-HK`, `en-BQ`, `es-CO`, `de-IT`, `fr-IT`, `es-CL`, `es-AR`, `es-EC`, `de-BR`. These reuse the corresponding existing translations in their language family. The runtime can resolve the exact regional tag. Language selection is available from the game’s Options panel or F2 and is saved per player in `ui.language`. Changes apply during play. Additional national, regional and indigenous language packs are only shipped once every English message has a translation with intact placeholders and markup. Complete additional language tables: `ja-JP`, `nl-BE`, `zh-SG`, `ms-SG`, `yue-HK`, `nl-NL`, `id-ID`, `ta-SG`, `zh-HK`, `fi-FI`, `sv-FI`, `et-EE`, `vi-VN`, `ru-FI`, `ru-EE`, `su-ID`, `da-DE`, `lb-BE`, `co-FR`, `eu-FR`, `ca-FR`, `oc-FR`, `sl-IT`, `fur-IT`, `ca-IT`, `oc-IT`, `ca-ES`, `eu-ES`, `gl-ES`, `bew-ID`, `km-VN`.
+
+<!-- regional-localization:end -->
