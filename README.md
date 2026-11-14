@@ -1,5 +1,7 @@
 # Open Cells
 
+**[▶ Play Open Cells on StarHermit](https://dashboard.starhermit.com/play/6fa430c6-4843-4015-9684-9eb52ddc2cba)**
+
 An open-information card puzzle on a brass-and-slate strategy desk. Four
 temporary cells, a fully visible eight-column tableau, four suit foundations.
 Everything is deterministic and inspectable: every deal has a seed, every
