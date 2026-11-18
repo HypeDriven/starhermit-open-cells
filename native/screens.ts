@@ -107,7 +107,7 @@ function heading(cls: string, text: string, width: number, id?: string): void {
 function rect(r: ui.Rect): void { hudRects.push({ x: r.x, y: r.y, width: r.width, height: r.height }); }
 
 // ------------------------------------------------------------------ the frame
-export function drawScreens(): void {
+function drawScreensImmediate(): void {
   const L = layoutNow();
   const f = frame();
   playScreen(L);
@@ -791,4 +791,11 @@ function resultsScreen(w: number, L: Layout): void {
   list.push({ id: "btn-results-leave", text: T("Leave"), style: "btn-quiet", act: leaveToTitle });
   void L;
   flow("results-row", list, w);
+}
+
+export function drawScreens(): void {
+  if (!(app.screens.some((screen) => screen.name === "help"))) { drawScreensImmediate(); return; }
+  const actions = ["nav_left","nav_right","nav_up","nav_down","confirm","undo","hint","auto","restart","camera_reset","cancel","pause"];
+  const version = JSON.stringify([(app as any).settings ?? (app as any).options ?? {}, (platform as any).options ?? {}, actions.map((action) => bindings(action))]);
+  ui.retain!("help-screen", version, drawScreensImmediate);
 }

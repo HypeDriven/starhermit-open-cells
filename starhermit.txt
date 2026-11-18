@@ -13,9 +13,10 @@ cover=cover.jpg
 launch=index.html
 engine.api=1
 engine.entry=native/main.ts
-engine.version=1.39.0
-engine.minor=39
+engine.version=1.44.1
+engine.minor=44
 engine.capabilities=platform,storage,clipboard
+engine.ray_tracing=auto
 
 # Keyboard controls (players rebind keys and pads in the runtime's Options).
 # Cards and slots also take the pointer or a finger on the desk: drag a card
