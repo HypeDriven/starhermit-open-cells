@@ -12,7 +12,7 @@
     "metadataSource": "starhermit.txt",
     "createdAt": "2026-09-01T07:01:04.714958+00:00",
     "coverArtSource": "manifest",
-    "coverArtUpdatedAt": "2026-11-18T17:52:11.117761+00:00",
+    "coverArtUpdatedAt": "2026-11-22T14:25:31.477332+00:00",
     "submittedByUserId": "2712e04e-461b-4d23-81ae-e40b429128a8",
     "submittedByUsername": "starhermit",
     "hosting": {
@@ -22,9 +22,9 @@
       "pinnedCommitSha": null,
       "deployedCommitSha": null,
       "deployError": null,
-      "deployedAt": "2026-11-18T17:52:11.107657+00:00",
+      "deployedAt": "2026-11-22T14:25:31.466344+00:00",
       "externalLaunchUrl": null,
-      "engineVersion": "1.44.1",
+      "engineVersion": "1.47.0",
       "deployWarning": null
     },
     "description": "Use four temporary holding cells to organize face-up cards and build suit foundations in FreeCell solitaire.",
@@ -36,19 +36,19 @@
     "links": [],
     "isDisabled": false
   },
-  "publishedAt": "2026-11-18T17:52:11.099Z",
-  "sourceCommit": "a6f0b897404af8568c5d56f76692230d96f1b962",
-  "bytesReceived": 10544122,
-  "archiveSha256": "4c135ed8b9c40bb0e93ad392513ac3468c13028cda1a28dcca8f87de3b4bcd8d",
+  "publishedAt": "2026-11-22T14:25:31.884Z",
+  "sourceCommit": "cef1140270e0f2ec1aaff12302598ff8dfbdd3d6",
+  "bytesReceived": 10544589,
+  "archiveSha256": "8849e98614500091bad2b2d09003700bfd40e402a93c3bdc328f5d384d184390",
   "indexSha256": "a1b2304eb9b28ed5ac9c0d85afacef05cb908585af42b3df9d224bfa1c636341",
   "result": {
     "clientPublished": true,
     "serverImageLoaded": false,
     "imageDigest": null,
-    "bytesReceived": 10544122,
+    "bytesReceived": 10544589,
     "mode": "replace",
     "filesRemoved": 0,
-    "engineVersion": "1.44.1",
+    "engineVersion": "1.47.0",
     "deployWarning": null
   },
   "liveVerification": {
