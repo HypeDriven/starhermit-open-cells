@@ -22,8 +22,8 @@ import { withLanguageRender as __l10nRender } from "./l10n/menu.ts";
 // wall time), so a paused game, a hidden window and slow frames never move it
 // and play scripts replay exactly.
 import "./classic.ts";
-import { clipboard, frame, levelSettings, onFixedUpdate, onPreferencesChange, onRender, onResume, onStart, onSuspend, onUpdate, preferences, setFixedRate } from "starhermit:engine";
-import { onAction, onPointerButton, onPointerMove, onTouch, vibrate } from "starhermit:input";
+import { clipboard, frame, levelSettings, onFixedUpdate, onPreferencesChange, onRender, onResume, onStart, onSuspend, onUpdate, preferences, setFixedRate, setTargetFps } from "starhermit:engine";
+import { onAction, onPointerButton, onPointerMove, onTouch, vibrate, primaryPointer } from "starhermit:input";
 import * as ui from "starhermit:ui";
 import { onSessionEnded, requestSignIn } from "starhermit:platform";
 import {
@@ -817,9 +817,20 @@ onSuspend(() => {
 onResume(() => { hidden = false; if (app.phase !== "paused") audio.setSuspended(false); });
 
 let frameDt = 0;
+/** The game's frame cap (host API 1.49 setTargetFps, set only on a change): 30 on the title (its key art covers the window and the desk does not draw there)
+ * and on phone levels (levelIndex <= 3) under a finger; none otherwise. The round clock stays 60 fixed
+ * steps a second. */
+let frameCap = -1;
+function capFrames(): void {
+  const cap = app.screens.some((s) => s.name === "title") || (frame().levelIndex <= 3 && primaryPointer() === "coarse") ? 30 : 0;
+  if (cap === frameCap) return;
+  frameCap = cap;
+  setTargetFps(cap || null);
+}
 onUpdate((dt) => {
   frameDt = dt;
   applyLook();
+  capFrames();
   applyTokens(themeFor(app.session ? app.config : null), ui.preferences().highContrast, platform.options.colorPalette);
   audio.update();
   if (refusal && app.screens.length) { refusal.dismiss(); refusal = null; }

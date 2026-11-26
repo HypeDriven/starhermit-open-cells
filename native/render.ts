@@ -163,6 +163,7 @@ function disposeTree(root: Object3D): void {
 function buildEnvironment(): void {
   if (envGroup) { scene.remove(envGroup); disposeTree(envGroup); }
   const grp = envGroup = new Group();
+  grp.movable = false; // the desk, trim, cloth and slots never move (a theme or look change rebuilds the group)
   scene.add(grp);
   slotMeshes = [];
   // Room: dark background with fog so the walnut surround fades out.
