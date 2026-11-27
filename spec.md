@@ -16,7 +16,7 @@ to put a card that has nowhere to go — Open Cells is the puzzle of spending th
 | Genre | Open-information solitaire / deterministic card puzzle |
 | Players | 1, with asynchronous score comparison |
 | Session | 2 min (a Learn lesson) to ~10 min (a full deal) |
-| Platforms | The StarHermit engine 1.50.0 (script game, host API 1.50, `engine.minor=50`): natively in the StarHermit client and in browsers through the engine's web runtime; desktop and phones, portrait and landscape; keyboard, mouse, touch and gamepad |
+| Platforms | The StarHermit engine 1.53.0 (script game, host API 1.53, `engine.minor=53`): natively in the StarHermit client and in browsers through the engine's web runtime; desktop and phones, portrait and landscape; keyboard, mouse, touch and gamepad |
 | Rendering | `starhermit:scene` desk (the browser build's three.js r152 scene ported as written) under a `starhermit:ui` interface; every card and slot is also a named accessibility target |
 | Persistence | The engine save (`starhermit:storage` `saves`): on the device and, signed in, in the player's cloud slot |
 | Networking | The StarHermit platform through `starhermit:platform` when signed in; guests play fully offline |
@@ -25,7 +25,7 @@ to put a card that has nowhere to go — Open Cells is the puzzle of spending th
 
 | Path | Responsibility |
 |---|---|
-| `starhermit.txt` | Manifest: `launch=index.html`, `engine.api=1`, `engine.entry=native/main.ts`, `engine.version=1.50.0`, `engine.minor=50`, `engine.capabilities=platform,storage,clipboard`, `server=score-script.js`, `cover=cover.jpg`, a `control.*` line and an `engine.gamepad.*` line per action. |
+| `starhermit.txt` | Manifest: `launch=index.html`, `engine.api=1`, `engine.entry=native/main.ts`, `engine.version=1.53.0`, `engine.minor=53`, `engine.capabilities=platform,storage,clipboard`, `server=score-script.js`, `cover=cover.jpg`, a `control.*` line and an `engine.gamepad.*` line per action. |
 | `index.html`, `starhermit-files.json` | The engine's web loader and file index, written by `npm run package` (`starhermit package --web .`); never edited by hand. |
 | `native/main.ts` | Entry module: the app state machine and screen stack, starting every mode, resuming the saved deal, session events (sounds, sparks, nudges, announcements, lessons), selection and moves from taps, drags, double taps, keys and pads (the board cursor), hints, Collect, undo, restart / concede confirmations, the deal clock on fixed steps, results and progression bookkeeping, lifecycle. |
 | `native/screens.ts` | Every screen on `starhermit:ui`: top bar, rails, tray, the board's named targets and cursor, and the overlay screens (§7). |
@@ -561,16 +561,18 @@ The string tables include complete regional variants for `fr-BE`, `de-BE`, `en-S
 
 <!-- regional-localization:end -->
 
-## Engine 1.50.0
+## Engine 1.53.0
 
-Browser play uses the StarHermit 1.50.0 web runtime on WebGPU, or WebGL 2 where WebGPU is missing. Automatic ray-traced shadows are enabled on supported Vulkan devices, with mapped-shadow fallbacks elsewhere.
+Browser play uses the StarHermit 1.53.0 web runtime on WebGPU, or WebGL 2 where WebGPU is missing. Automatic ray-traced shadows are enabled on supported Vulkan devices, with mapped-shadow fallbacks elsewhere.
 
 The help screen replays through retained native UI while its contents, options, layout and key bindings are unchanged.
 
 Browser rendering uses the engine's asynchronous pipeline creation so newly encountered materials do not stall the page. Native play retains the engine's synchronous pipeline behavior.
 
-**Frame rate (host API 1.49 `setTargetFps`).** The game caps itself at 30 frames a second on the title (its key art covers the window and the desk does not draw there) and, under a finger (`primaryPointer() === "coarse"`), on the phone graphics levels (`levelIndex` ≤ 3), where even 33 ms frames replace uneven ones; elsewhere there is no game cap. The round clock stays 60 fixed steps a second whatever the frame rate. The engine sets the cap aside while its menus are open, and the player's Frame rate limit still applies.
+**Frame rate (host API 1.53 `setTargetFps`).** The game caps itself at 30 frames a second on the title (its key art covers the window and the desk does not draw there) and, under a finger (`primaryPointer() === "coarse"`), on the phone graphics levels (`levelIndex` ≤ 3), where even 33 ms frames replace uneven ones; elsewhere there is no game cap. The round clock stays 60 fixed steps a second whatever the frame rate. The engine sets the cap aside while its menus are open, and the player's Frame rate limit still applies.
 
-**Still scenery (host API 1.49).** The desk group (walnut surround, slate slab, brass trim, cloth inlay and the slot recesses) is `movable = false`, so the renderer caches it in shadow maps from the first frame and the scene's sync skips its transforms; a theme or graphics change rebuilds it. The cards, the selection and target rings, sparks, motes and the camera stay movable.
+**Still scenery (host API 1.53).** The desk group (walnut surround, slate slab, brass trim, cloth inlay and the slot recesses) is `movable = false`, so the renderer caches it in shadow maps from the first frame and the scene's sync skips its transforms; a theme or graphics change rebuilds it. The cards, the selection and target rings, sparks, motes and the camera stay movable.
 
 Higher graphics tiers use native per-object motion blur for moving pieces and effects. Camera motion stays sharp, lower tiers omit the effect, and the runtime's Motion blur and Reduce motion preferences remain authoritative.
+
+On engine 1.53.0, browser play through WebGL 2 compiles a frame's shader programs together and holds that frame until they are linked, blends skinned meshes in one pass, reuses the window pass's depth, and uses a hardware WebGL 2 context when WebGPU's adapter is software.
