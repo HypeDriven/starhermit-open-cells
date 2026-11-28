@@ -31,10 +31,6 @@ export function loadSfx(): void {
   for (const n of new Set(Object.values(SFX))) {
     loadClip(`sfx/${n}.opus`).then((c) => { clips.set(n, c); }, (e: unknown) => { console.warn(`sfx ${n}: ${String(e)}`); });
   }
-  const failed = (e: unknown): void => { console.warn(`audio: ${String(e)}`); };
-  renderAmbience().then((c) => { ambClip = c; }, failed);
-  renderPad().then((c) => { padClip = c; }, failed);
-  renderVoice().then((c) => { voiceClip = c; }, failed);
 }
 
 /** audio.js play(event). */
@@ -111,7 +107,20 @@ export function setSuspended(on: boolean): void {
 }
 
 /** Each frame, once the mixer runs: the ambience and the music, as their renders finish. */
+let __bedsStarted = false;
+function startBeds(): void {
+  if (__bedsStarted) return;
+  __bedsStarted = true;
+  void (async () => {
+    const failed = (e: unknown): void => { console.warn(`audio: ${String(e)}`); };
+    renderAmbience().then((c) => { ambClip = c; }, failed);
+    renderPad().then((c) => { padClip = c; }, failed);
+    renderVoice().then((c) => { voiceClip = c; }, failed);
+  })();
+}
+
 export function update(): void {
+  startBeds();
   if (context.state !== "running") return;
   if (ambClip && !ambVoice) {
     try { ambVoice = playClip(ambClip, { bus: "music", gain: suspended ? 0 : 0.8, loop: true }); } catch { ambVoice = null; }

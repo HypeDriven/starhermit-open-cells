@@ -659,18 +659,23 @@ export function playEvent(event: "foundation" | "win" | "invalid", loc?: Loc): v
 
 // ---------------------------------------------------------------- picking and dragging
 export type Hit = { kind: "card"; cardId: number } | { kind: "slot"; loc: Loc };
+const cardTargets: Object3D[] = [];
+const slotTargets: Object3D[] = [];
+const planeHit = new Vector3();
 /** Window pixels → the topmost card (cards first) or the slot under them (render.js pick). */
 export function pick(x: number, y: number, exclude?: Set<number>): Hit | null {
   if (!renderer.camera) return null;
   raycaster.setFromCamera(pointerToNdc(x, y), camera);
-  const meshes: Object3D[] = [];
-  for (const e of cardMeshes.values()) if (!exclude || !exclude.has(e.mesh.userData.cardId as number)) meshes.push(e.mesh);
-  const hits = raycaster.intersectObjects(meshes, false);
+  cardTargets.length = 0;
+  for (const e of cardMeshes.values()) if (!exclude || !exclude.has(e.mesh.userData.cardId as number)) cardTargets.push(e.mesh);
+  const hits = raycaster.intersectObjects(cardTargets, false);
   if (hits.length) {
     hits.sort((a, b) => (b.object.position.y - a.object.position.y) || (a.distance - b.distance));
     return { kind: "card", cardId: hits[0]!.object.userData.cardId as number };
   }
-  const slotHits = raycaster.intersectObjects(slotMeshes.map((s) => s.mesh), false);
+  slotTargets.length = slotMeshes.length;
+  for (let i = 0; i < slotMeshes.length; i++) slotTargets[i] = slotMeshes[i]!.mesh;
+  const slotHits = raycaster.intersectObjects(slotTargets, false);
   if (slotHits.length) {
     const s = slotMeshes.find((m) => m.mesh === slotHits[0]!.object);
     if (s) return { kind: "slot", loc: s.loc };
@@ -680,9 +685,8 @@ export function pick(x: number, y: number, exclude?: Set<number>): Hit | null {
 const dragPlane = new Plane(new Vector3(0, 1, 0), -0.3);
 function planePoint(x: number, y: number): Vector3 {
   raycaster.setFromCamera(pointerToNdc(x, y), camera);
-  const out = new Vector3();
-  raycaster.ray.intersectPlane(dragPlane, out);
-  return out;
+  raycaster.ray.intersectPlane(dragPlane, planeHit);
+  return planeHit;
 }
 export function cardLocOf(cardId: number): Loc | null { return cardMeshes.get(cardId)?.loc ?? null; }
 interface Drag { cardId: number; ids: Set<number>; depth0: number; moved: boolean }
